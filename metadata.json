@@ -1,0 +1,6 @@
+{
+  "name": "Công Cụ Việt Hóa Font",
+  "description": "Ứng dụng hỗ trợ Việt hóa font chữ chuyên nghiệp, phát hiện ký tự thiếu, hỗ trợ vector và căn chỉnh tracking/kerning",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
