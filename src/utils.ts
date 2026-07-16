@@ -451,3 +451,388 @@ export function getExactBoundingBox(cmds: any[]): { xMin: number; xMax: number; 
 
   return { xMin, xMax, yMin, yMax };
 }
+
+/**
+ * Extracts and converts GPOS kerning tables (Format 1 and Format 2 Class-based positioning)
+ * into standard font.kerningPairs so they can be written as standard 'kern' table pairs when saved,
+ * and utilized for smart Vietnamese character kerning cloning.
+ */
+export function ensureKerningPairsPopulated(font: any): void {
+  if (!font) return;
+  if (!font.kerningPairs) {
+    font.kerningPairs = {};
+  }
+
+  const gpos = font.tables?.gpos;
+  if (gpos && gpos.lookups) {
+    const lookups = gpos.lookups || [];
+    for (const lookup of lookups) {
+      if (lookup.lookupType === 2) { // Pair Positioning
+        const subtables = lookup.subtables || [];
+        for (const subtable of subtables) {
+          const posFormat = subtable.posFormat !== undefined ? subtable.posFormat : subtable.format;
+          // Format 1: Pair Adjustment (Specific glyph pairs)
+          if (posFormat === 1) {
+            const coverage = subtable.coverage;
+            if (!coverage || !coverage.glyphs) continue;
+            const leftGlyphs = coverage.glyphs;
+            const pairSets = subtable.pairSets || [];
+            
+            for (let i = 0; i < leftGlyphs.length; i++) {
+              const leftGlyphIndex = leftGlyphs[i];
+              const pairSet = pairSets[i];
+              if (!pairSet) continue;
+              
+              for (const pairValueRecord of pairSet) {
+                const rightGlyphIndex = pairValueRecord.secondGlyph;
+                const value1 = pairValueRecord.value1;
+                if (value1 && typeof value1.xAdvance === 'number' && value1.xAdvance !== 0) {
+                  const kernValue = value1.xAdvance;
+                  const pairKey = `${leftGlyphIndex},${rightGlyphIndex}`;
+                  if (font.kerningPairs[pairKey] === undefined) {
+                    font.kerningPairs[pairKey] = kernValue;
+                  }
+                }
+              }
+            }
+          }
+          // Format 2: Class-based Pair Adjustment
+          else if (posFormat === 2) {
+            const classDef1 = subtable.classDef1;
+            const classDef2 = subtable.classDef2;
+            const classRecords = subtable.classRecords || [];
+            const class1Count = subtable.class1Count || 0;
+            const class2Count = subtable.class2Count || 0;
+            
+            // Helper to fetch glyph class index safely
+            const getGlyphClass = (classDef: any, glyphIndex: number): number => {
+              if (!classDef) return 0;
+              const format = classDef.format !== undefined ? classDef.format : classDef.classFormat;
+              if (format === 1) {
+                const startGlyph = classDef.startGlyph || 0;
+                const classValueArray = classDef.classes || classDef.classValueArray || [];
+                const index = glyphIndex - startGlyph;
+                if (index >= 0 && index < classValueArray.length) {
+                  return classValueArray[index];
+                }
+                return 0;
+              }
+              if (format === 2) {
+                const ranges = classDef.ranges || classDef.classRangeRecords || [];
+                for (const record of ranges) {
+                  const start = record.start !== undefined ? record.start : record.startGlyphID;
+                  const end = record.end !== undefined ? record.end : record.endGlyphID;
+                  const classId = record.classId !== undefined ? record.classId : record.class;
+                  if (glyphIndex >= start && glyphIndex <= end) {
+                    return classId || 0;
+                  }
+                }
+                return 0;
+              }
+              if (classDef.classDefs && typeof classDef.classDefs === 'object') {
+                return classDef.classDefs[glyphIndex] || 0;
+              }
+              return 0;
+            };
+
+            const numGlyphs = font.glyphs.length;
+            const class1ToGlyphs: Record<number, number[]> = {};
+            const class2ToGlyphs: Record<number, number[]> = {};
+
+            // Class 1 (left glyphs) MUST be in the coverage table to be valid
+            const coverageGlyphs = subtable.coverage?.glyphs || [];
+            for (const g of coverageGlyphs) {
+              const c1 = getGlyphClass(classDef1, g);
+              if (c1 < class1Count) {
+                if (!class1ToGlyphs[c1]) class1ToGlyphs[c1] = [];
+                class1ToGlyphs[c1].push(g);
+              }
+            }
+
+            // Class 2 (right glyphs) can be any glyph in the font
+            for (let g = 0; g < numGlyphs; g++) {
+              const c2 = getGlyphClass(classDef2, g);
+              if (c2 < class2Count) {
+                if (!class2ToGlyphs[c2]) class2ToGlyphs[c2] = [];
+                class2ToGlyphs[c2].push(g);
+              }
+            }
+
+            // Iterate over Class 1 -> Class 2 records to expand kerning pairs
+            for (let c1 = 0; c1 < classRecords.length; c1++) {
+              if (c1 >= class1Count) continue;
+              const classRecordRow = classRecords[c1];
+              if (!classRecordRow) continue;
+              
+              const firstGlyphsInClass = class1ToGlyphs[c1] || [];
+              if (firstGlyphsInClass.length === 0) continue;
+              
+              for (let c2 = 0; c2 < classRecordRow.length; c2++) {
+                if (c2 >= class2Count) continue;
+                const classRecord = classRecordRow[c2];
+                if (!classRecord) continue;
+                
+                const value1 = classRecord.value1;
+                if (value1 && typeof value1.xAdvance === 'number' && value1.xAdvance !== 0) {
+                  const kernValue = value1.xAdvance;
+                  const secondGlyphsInClass = class2ToGlyphs[c2] || [];
+                  if (secondGlyphsInClass.length === 0) continue;
+                  
+                  for (const g1 of firstGlyphsInClass) {
+                    for (const g2 of secondGlyphsInClass) {
+                      const pairKey = `${g1},${g2}`;
+                      if (font.kerningPairs[pairKey] === undefined) {
+                        font.kerningPairs[pairKey] = kernValue;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Calculates the checksum of a font table according to the OpenType specification
+ */
+function calculateTableChecksum(data: Uint8Array): number {
+  let sum = 0;
+  const len = data.length;
+  const paddedLen = Math.ceil(len / 4) * 4;
+  
+  for (let i = 0; i < paddedLen; i += 4) {
+    const b0 = i < len ? data[i] : 0;
+    const b1 = i + 1 < len ? data[i + 1] : 0;
+    const b2 = i + 2 < len ? data[i + 2] : 0;
+    const b3 = i + 3 < len ? data[i + 3] : 0;
+    
+    const val = ((b0 << 24) | (b1 << 16) | (b2 << 8) | b3) >>> 0;
+    sum = (sum + val) >>> 0;
+  }
+  return sum;
+}
+
+/**
+ * Builds a binary legacy 'kern' table (format 0, version 0) from font.kerningPairs.
+ * This legacy table is essential for modern web browsers when GPOS is omitted,
+ * allowing perfect kerning for both standard and custom Vietnamese character pairs.
+ */
+export function buildKernTable(font: any): Uint8Array {
+  const pairs: { left: number; right: number; value: number }[] = [];
+  if (font && font.kerningPairs) {
+    for (const [key, val] of Object.entries(font.kerningPairs)) {
+      const parts = key.split(',');
+      if (parts.length !== 2) continue;
+      const left = parseInt(parts[0], 10);
+      const right = parseInt(parts[1], 10);
+      if (isNaN(left) || isNaN(right)) continue;
+      if (typeof val === 'number' && val !== 0) {
+        pairs.push({ left, right, value: val });
+      }
+    }
+  }
+
+  // Sort by left glyph index, then right glyph index as mandated by the TrueType specification
+  pairs.sort((a, b) => {
+    if (a.left !== b.left) {
+      return a.left - b.left;
+    }
+    return a.right - b.right;
+  });
+
+  const nPairs = pairs.length;
+  const subtableSize = 14 + 6 * nPairs;
+  const totalSize = 4 + subtableSize;
+
+  const buffer = new ArrayBuffer(totalSize);
+  const view = new DataView(buffer);
+
+  // Main header
+  view.setUint16(0, 0); // version 0
+  view.setUint16(2, 1); // 1 subtable
+
+  // Subtable header
+  view.setUint16(4, 0); // subtable version 0
+  view.setUint16(6, subtableSize); // length of subtable
+  view.setUint16(8, 1); // coverage format 0 (horizontal)
+
+  // Format 0 search values
+  const maxPowerOf2 = nPairs > 0 ? Math.pow(2, Math.floor(Math.log2(nPairs))) : 0;
+  const searchRange = maxPowerOf2 * 6;
+  const entrySelector = nPairs > 0 ? Math.floor(Math.log2(maxPowerOf2)) : 0;
+  const rangeShift = (nPairs - maxPowerOf2) * 6;
+
+  view.setUint16(10, nPairs);
+  view.setUint16(12, searchRange);
+  view.setUint16(14, entrySelector);
+  view.setUint16(16, rangeShift);
+
+  // Pairs records
+  let offset = 18;
+  for (let i = 0; i < nPairs; i++) {
+    const pair = pairs[i];
+    view.setUint16(offset, pair.left);
+    view.setUint16(offset + 2, pair.right);
+    view.setInt16(offset + 4, pair.value);
+    offset += 6;
+  }
+
+  return new Uint8Array(buffer);
+}
+
+/**
+ * Merges advanced OpenType layout tables (GPOS, GSUB, GDEF, BASE) from the original font 
+ * into the compiled font buffer to guarantee pristine original kerning and substitution features.
+ * When skipGPOS is true, the GPOS table is omitted, allowing browsers to fallback to the legacy 'kern'
+ * table which successfully includes all custom Vietnamese character kerning.
+ */
+export function injectAdvancedLayoutTables(
+  compiledBuffer: ArrayBuffer, 
+  originalBuffer: ArrayBuffer, 
+  skipGPOS: boolean = false,
+  kernTableBytes?: Uint8Array
+): ArrayBuffer {
+  try {
+    const parseTables = (buf: ArrayBuffer) => {
+      const view = new DataView(buf);
+      const sfntVersion = view.getUint32(0);
+      const numTables = view.getUint16(4);
+      
+      const tables: Record<string, Uint8Array> = {};
+      let offset = 12;
+      for (let i = 0; i < numTables; i++) {
+        const tagBytes = [
+          view.getUint8(offset),
+          view.getUint8(offset + 1),
+          view.getUint8(offset + 2),
+          view.getUint8(offset + 3)
+        ];
+        const tag = String.fromCharCode(...tagBytes);
+        const tableOffset = view.getUint32(offset + 8);
+        const length = view.getUint32(offset + 12);
+        
+        // Use slice to copy safely without detaching backing store
+        const data = new Uint8Array(buf.slice(tableOffset, tableOffset + length));
+        tables[tag] = data;
+        
+        offset += 16;
+      }
+      return { sfntVersion, tables };
+    };
+
+    const original = parseTables(originalBuffer);
+    const compiled = parseTables(compiledBuffer);
+
+    let injectedAny = false;
+
+    // Inject/overwrite the custom legacy kern table if provided
+    if (kernTableBytes) {
+      compiled.tables['kern'] = kernTableBytes;
+      injectedAny = true;
+    }
+
+    // Ensure we strip GPOS from compiled tables if GPOS is skipped
+    if (skipGPOS && compiled.tables['GPOS']) {
+      delete compiled.tables['GPOS'];
+      injectedAny = true;
+    }
+
+    const tagsToInject = skipGPOS ? ['GSUB', 'GDEF', 'BASE'] : ['GPOS', 'GSUB', 'GDEF', 'BASE'];
+
+    tagsToInject.forEach(tag => {
+      if (original.tables[tag] && !compiled.tables[tag]) {
+        compiled.tables[tag] = original.tables[tag];
+        injectedAny = true;
+      }
+    });
+
+    if (!injectedAny) {
+      return compiledBuffer;
+    }
+
+    const tableTags = Object.keys(compiled.tables).sort();
+    const numTables = tableTags.length;
+
+    let maxPowerOf2 = 1;
+    while (maxPowerOf2 * 2 <= numTables) {
+      maxPowerOf2 *= 2;
+    }
+    const searchRange = maxPowerOf2 * 16;
+    const entrySelector = Math.log2(maxPowerOf2);
+    const rangeShift = numTables * 16 - searchRange;
+
+    const directoryOffset = 12;
+    const firstTableOffset = directoryOffset + numTables * 16;
+
+    let currentOffset = firstTableOffset;
+    const offsets: Record<string, number> = {};
+    const paddedLengths: Record<string, number> = {};
+
+    tableTags.forEach(tag => {
+      offsets[tag] = currentOffset;
+      const data = compiled.tables[tag];
+      const length = data.length;
+      const paddedLength = Math.ceil(length / 4) * 4;
+      paddedLengths[tag] = paddedLength;
+      currentOffset += paddedLength;
+    });
+
+    const outputBuffer = new ArrayBuffer(currentOffset);
+    const outputView = new DataView(outputBuffer);
+    const outputBytes = new Uint8Array(outputBuffer);
+
+    outputView.setUint32(0, compiled.sfntVersion);
+    outputView.setUint16(4, numTables);
+    outputView.setUint16(6, searchRange);
+    outputView.setUint16(8, entrySelector);
+    outputView.setUint16(10, rangeShift);
+
+    let recOffset = directoryOffset;
+    tableTags.forEach(tag => {
+      const data = compiled.tables[tag];
+      const offset = offsets[tag];
+      const length = data.length;
+      const checksum = calculateTableChecksum(data);
+
+      for (let j = 0; j < 4; j++) {
+        outputView.setUint8(recOffset + j, tag.charCodeAt(j));
+      }
+      outputView.setUint32(recOffset + 4, checksum);
+      outputView.setUint32(recOffset + 8, offset);
+      outputView.setUint32(recOffset + 12, length);
+
+      outputBytes.set(data, offset);
+      const paddedLength = paddedLengths[tag];
+      for (let p = length; p < paddedLength; p++) {
+        outputBytes[offset + p] = 0;
+      }
+
+      recOffset += 16;
+    });
+
+    const headData = compiled.tables['head'];
+    if (headData) {
+      const headOffset = offsets['head'];
+      if (headOffset + 12 <= outputBuffer.byteLength) {
+        outputView.setUint32(headOffset + 8, 0);
+      }
+
+      const fileChecksum = calculateTableChecksum(new Uint8Array(outputBuffer));
+      const checksumAdjustment = (0xB1B0AFBA - fileChecksum) >>> 0;
+
+      if (headOffset + 12 <= outputBuffer.byteLength) {
+        outputView.setUint32(headOffset + 8, checksumAdjustment);
+      }
+    }
+
+    return outputBuffer;
+  } catch (err) {
+    console.error('Failed to inject advanced layout tables:', err);
+    return compiledBuffer;
+  }
+}
+

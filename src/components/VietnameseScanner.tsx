@@ -33,10 +33,10 @@ export const VietnameseScanner: React.FC<VietnameseScannerProps> = ({
       const isUserCompleted = !!(userEdit && userEdit.isCompleted);
       
       let status: 'found' | 'missing' | 'completed' = 'missing';
-      if (isOriginallyPresent) {
-        status = 'found';
-      } else if (isUserCompleted) {
+      if (isUserCompleted) {
         status = 'completed';
+      } else if (isOriginallyPresent) {
+        status = 'found';
       }
 
       return {
@@ -163,7 +163,7 @@ export const VietnameseScanner: React.FC<VietnameseScannerProps> = ({
                     : 'text-neutral-500 hover:text-neutral-800'
                 }`}
               >
-                Đã thêm ({stats.completed})
+                Đã chỉnh sửa/thêm ({stats.completed})
               </button>
               <button
                 id="filter-status-found"
@@ -267,7 +267,7 @@ export const VietnameseScanner: React.FC<VietnameseScannerProps> = ({
             let iconColor = 'text-amber-500';
             
             if (item.status === 'found') {
-              cardStyle = 'border-green-100 bg-green-50/10 text-green-950 cursor-not-allowed opacity-75';
+              cardStyle = 'border-green-100 bg-green-50/10 text-green-950 hover:border-green-300 hover:bg-green-50/25';
               iconColor = 'text-green-500';
             } else if (item.status === 'completed') {
               cardStyle = 'border-blue-200 bg-blue-50/10 text-blue-950 hover:bg-blue-50/20';
@@ -284,11 +284,8 @@ export const VietnameseScanner: React.FC<VietnameseScannerProps> = ({
               <button
                 key={item.char}
                 onClick={() => {
-                  if (item.status !== 'found') {
-                    onSelectSlot(item.char);
-                  }
+                  onSelectSlot(item.char);
                 }}
-                disabled={item.status === 'found'}
                 className={`relative flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 ${cardStyle}`}
               >
                 {/* Character */}
