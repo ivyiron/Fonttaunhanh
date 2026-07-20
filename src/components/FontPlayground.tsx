@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Type, ArrowRight, Play } from 'lucide-react';
+import { Type } from 'lucide-react';
+import * as opentype from 'opentype.js';
 
 interface FontPlaygroundProps {
   fontBuffer: ArrayBuffer | null;
@@ -14,9 +15,28 @@ export const FontPlayground: React.FC<FontPlaygroundProps> = ({
 }) => {
   const [inputText, setInputText] = useState(DEFAULT_SENTENCE);
   const [fontSize, setFontSize] = useState(32);
+  const [lineHeight, setLineHeight] = useState(1.4); // Leading / Line height state
   const [fontRegistered, setFontRegistered] = useState(false);
+  const [activeFamilyName, setActiveFamilyName] = useState(fontFamilyName);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [parsedFont, setParsedFont] = useState<any>(null);
 
+  // Parse fontBuffer to a usable opentype.js Font instance
+  useEffect(() => {
+    if (!fontBuffer) {
+      setParsedFont(null);
+      return;
+    }
+    try {
+      const parsed = opentype.parse(fontBuffer.slice(0));
+      setParsedFont(parsed);
+    } catch (e) {
+      console.error('Failed to parse fontBuffer in FontPlayground:', e);
+      setParsedFont(null);
+    }
+  }, [fontBuffer]);
+
+  // Register font face in the browser
   useEffect(() => {
     if (!fontBuffer) {
       setFontRegistered(false);
@@ -26,14 +46,31 @@ export const FontPlayground: React.FC<FontPlaygroundProps> = ({
     const registerFont = async () => {
       try {
         setLoadError(null);
-        // Create custom FontFace
-        const fontFace = new FontFace(fontFamilyName, fontBuffer);
+        // Generate a unique family name to bypass browser font-face cache
+        const uniqueName = `${fontFamilyName}_v${Date.now()}`;
+        const fontFace = new FontFace(uniqueName, fontBuffer);
         const loadedFace = await fontFace.load();
         
+        try {
+          // Remove old dynamic FontFaces with family names starting with our base name
+          const toRemove: FontFace[] = [];
+          document.fonts.forEach((face) => {
+            if (face.family.startsWith(fontFamilyName + '_v') || face.family === fontFamilyName) {
+              toRemove.push(face);
+            }
+          });
+          toRemove.forEach((face) => {
+            document.fonts.delete(face);
+          });
+        } catch (cleanErr) {
+          console.warn('Error cleaning up previous dynamic fonts:', cleanErr);
+        }
+
         // Add to document
         document.fonts.add(loadedFace);
+        setActiveFamilyName(uniqueName);
         setFontRegistered(true);
-        console.log(`Successfully registered dynamic font face: ${fontFamilyName}`);
+        console.log(`Successfully registered dynamic font face: ${uniqueName}`);
       } catch (err: any) {
         console.error('FontFace registration failed', err);
         setLoadError('Không thể nạp font vào trình duyệt để chạy thử: ' + (err.message || 'Lỗi không xác định'));
@@ -43,6 +80,124 @@ export const FontPlayground: React.FC<FontPlaygroundProps> = ({
 
     registerFont();
   }, [fontBuffer, fontFamilyName]);
+
+  // Render the text word-by-word, character-by-character with exact kerning offsets
+  const renderTextWithKerning = () => {
+    if (!inputText) return null;
+    if (!parsedFont) {
+      return <span>{inputText}</span>;
+    }
+
+    const lines = inputText.split('\n');
+    const lineElements: React.ReactNode[] = [];
+
+    // Scale factor to convert font design units (usually 1000 or 2048 unitsPerEm) to pixels
+    const unitsPerEm = parsedFont.unitsPerEm || 1000;
+    const scale = fontSize / unitsPerEm;
+
+    lines.forEach((line, lineIdx) => {
+      // Split the line into segments of words and spaces
+      const tokens: string[] = [];
+      let currentToken = '';
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === ' ') {
+          if (currentToken) {
+            tokens.push(currentToken);
+            currentToken = '';
+          }
+          tokens.push(' ');
+        } else {
+          currentToken += char;
+        }
+      }
+      if (currentToken) {
+        tokens.push(currentToken);
+      }
+
+      // Calculate the kerning value for each character pair in the line
+      const charKerning: number[] = [];
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        let kernValue = 0;
+        if (nextChar) {
+          const leftIndex = parsedFont.charToGlyphIndex(char);
+          const rightIndex = parsedFont.charToGlyphIndex(nextChar);
+          if (leftIndex > 0 && rightIndex > 0) {
+            const pairKey = `${leftIndex},${rightIndex}`;
+            // Prioritize reading directly from parsedFont.kerningPairs first
+            if (parsedFont.kerningPairs && parsedFont.kerningPairs[pairKey] !== undefined) {
+              kernValue = parsedFont.kerningPairs[pairKey];
+            } else {
+              kernValue = parsedFont.getKerningValue(leftIndex, rightIndex) || 0;
+            }
+          }
+        }
+        charKerning.push(kernValue * scale);
+      }
+
+      const wordElements: React.ReactNode[] = [];
+      let charIdxInLine = 0;
+
+      tokens.forEach((token, tokenIdx) => {
+        if (token === ' ') {
+          const kernPx = charKerning[charIdxInLine];
+          wordElements.push(
+            <span
+              key={`space-${tokenIdx}`}
+              style={{
+                marginRight: kernPx !== 0 ? `${kernPx}px` : undefined,
+                display: 'inline-block',
+                whiteSpace: 'pre'
+              }}
+            >
+              {' '}
+            </span>
+          );
+          charIdxInLine++;
+        } else {
+          const wordChars = Array.from(token);
+          const wordCharElements = wordChars.map((char, cIdx) => {
+            const globalIdx = charIdxInLine + cIdx;
+            const kernPx = charKerning[globalIdx];
+            return (
+              <span
+                key={`char-${cIdx}`}
+                style={{
+                  marginRight: kernPx !== 0 ? `${kernPx}px` : undefined,
+                  display: 'inline-block',
+                  whiteSpace: 'pre'
+                }}
+              >
+                {char}
+              </span>
+            );
+          });
+          
+          wordElements.push(
+            <span
+              key={`word-${tokenIdx}`}
+              className="inline-block"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {wordCharElements}
+            </span>
+          );
+          charIdxInLine += token.length;
+        }
+      });
+
+      lineElements.push(
+        <div key={`line-${lineIdx}`} className="min-h-[1.2em] w-full" style={{ lineHeight: lineHeight }}>
+          {wordElements.length > 0 ? wordElements : <br />}
+        </div>
+      );
+    });
+
+    return <div className="w-full text-left">{lineElements}</div>;
+  };
 
   return (
     <div id="font-playground-panel" className="bg-white border border-neutral-100 rounded-xl p-6 shadow-xs">
@@ -80,19 +235,36 @@ export const FontPlayground: React.FC<FontPlaygroundProps> = ({
 
       {/* Font Size & Presets bar */}
       <div className="flex flex-wrap gap-4 items-center justify-between mb-4 bg-neutral-50 p-3 rounded-lg border border-neutral-100/60">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <span className="text-xs text-neutral-600 font-medium">Cỡ chữ:</span>
-          <input
-            id="slider-playground-font-size"
-            type="range"
-            min="12"
-            max="120"
-            step="1"
-            value={fontSize}
-            onChange={(e) => setFontSize(parseInt(e.target.value))}
-            className="accent-neutral-800 w-32 sm:w-48"
-          />
-          <span className="text-xs text-neutral-700 font-mono font-bold">{fontSize}px</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 w-full sm:w-auto">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-neutral-600 font-medium">Cỡ chữ:</span>
+            <input
+              id="slider-playground-font-size"
+              type="range"
+              min="12"
+              max="120"
+              step="1"
+              value={fontSize}
+              onChange={(e) => setFontSize(parseInt(e.target.value))}
+              className="accent-neutral-800 w-24 sm:w-32"
+            />
+            <span className="text-xs text-neutral-700 font-mono font-bold w-10">{fontSize}px</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-neutral-600 font-medium">Dòng (Leading):</span>
+            <input
+              id="slider-playground-line-height"
+              type="range"
+              min="0.8"
+              max="3.0"
+              step="0.1"
+              value={lineHeight}
+              onChange={(e) => setLineHeight(parseFloat(e.target.value))}
+              className="accent-neutral-800 w-24 sm:w-32"
+            />
+            <span className="text-xs text-neutral-700 font-mono font-bold w-8">{lineHeight.toFixed(1)}</span>
+          </div>
         </div>
 
         {/* Quick Sentences */}
@@ -139,14 +311,15 @@ export const FontPlayground: React.FC<FontPlaygroundProps> = ({
           <span className="text-xs font-semibold text-neutral-700 block">Khu vực hiển thị thực tế (Kéo góc dưới bên phải để chỉnh chiều cao):</span>
           <div 
             id="playground-rendering-box"
-            className="w-full h-[122px] min-h-[122px] max-h-[600px] p-4 bg-neutral-50 border border-neutral-200 rounded-xl overflow-y-auto break-words leading-relaxed resize-y shadow-inner"
+            className="w-full h-[122px] min-h-[122px] max-h-[600px] p-4 bg-neutral-50 border border-neutral-200 rounded-xl overflow-y-auto break-words resize-y shadow-inner text-left"
             style={{
-              fontFamily: fontRegistered ? `"${fontFamilyName}", sans-serif` : 'sans-serif',
+              fontFamily: fontRegistered ? `"${activeFamilyName}", sans-serif` : 'sans-serif',
               fontSize: `${fontSize}px`,
+              lineHeight: lineHeight,
               transition: 'font-size 0.1s ease'
             }}
           >
-            {inputText || <span className="text-neutral-400 italic">Nhập chữ để kiểm tra hiển thị...</span>}
+            {inputText ? renderTextWithKerning() : <span className="text-neutral-400 italic">Nhập chữ để kiểm tra hiển thị...</span>}
           </div>
         </div>
       </div>

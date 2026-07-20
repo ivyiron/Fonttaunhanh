@@ -10,6 +10,50 @@ interface FontUploaderProps {
   filename: string | null;
 }
 
+// Helper to safely retrieve localized font name strings across flat and platform-specific formats in opentype.js
+const getFontName = (font: any, key: string, defaultValue: string): string => {
+  if (!font || !font.names) return defaultValue;
+  
+  // 1. Check flat structure first (e.g., font.names.fontFamily)
+  const flatObj = font.names[key];
+  if (flatObj) {
+    if (typeof flatObj === 'string') return flatObj;
+    if (flatObj.en) return flatObj.en;
+    if (flatObj.vi) return flatObj.vi;
+    const langKeys = Object.keys(flatObj);
+    if (langKeys.length > 0) {
+      const val = flatObj[langKeys[0]];
+      if (typeof val === 'string') return val;
+      if (val && typeof val === 'object') {
+        const subKeys = Object.keys(val);
+        if (subKeys.length > 0) return val[subKeys[0]];
+      }
+    }
+  }
+
+  // 2. Check platform-specific structures (e.g., font.names.windows.fontFamily)
+  const platforms = ['windows', 'macintosh'];
+  for (const plat of platforms) {
+    const platObj = font.names[plat]?.[key];
+    if (platObj) {
+      if (typeof platObj === 'string') return platObj;
+      if (platObj.en) return platObj.en;
+      if (platObj.vi) return platObj.vi;
+      const langKeys = Object.keys(platObj);
+      if (langKeys.length > 0) {
+        const val = platObj[langKeys[0]];
+        if (typeof val === 'string') return val;
+        if (val && typeof val === 'object') {
+          const subKeys = Object.keys(val);
+          if (subKeys.length > 0) return val[subKeys[0]];
+        }
+      }
+    }
+  }
+
+  return defaultValue;
+};
+
 export const FontUploader: React.FC<FontUploaderProps> = ({
   onFontLoaded,
   onReset,
@@ -38,10 +82,13 @@ export const FontUploader: React.FC<FontUploaderProps> = ({
           const font = opentype.parse(buffer);
           
           // Retrieve metadata safely
-          const family = font.names.fontFamily?.en || font.names.fontFamily?.vi || 'Không rõ';
-          const subfamily = font.names.fontSubfamily?.en || font.names.fontSubfamily?.vi || 'Regular';
-          const name = font.names.fullName?.en || font.names.fullName?.vi || `${family} ${subfamily}`;
+          const family = getFontName(font, 'fontFamily', 'Không rõ');
+          const subfamily = getFontName(font, 'fontSubfamily', 'Regular');
+          const name = getFontName(font, 'fullName', `${family} ${subfamily}`);
           
+          // Safely fetch unitsPerEm
+          const unitsPerEm = font.unitsPerEm || font.tables?.head?.unitsPerEm || 1000;
+
           // Safely fetch capHeight and xHeight, or default based on ascender
           let capHeight = 700;
           let xHeight = 500;
@@ -54,12 +101,12 @@ export const FontUploader: React.FC<FontUploaderProps> = ({
             name,
             family,
             subfamily,
-            unitsPerEm: font.unitsPerEm,
-            ascender: font.ascender,
-            descender: font.descender,
+            unitsPerEm,
+            ascender: font.ascender || 1000,
+            descender: font.descender || -200,
             capHeight,
             xHeight,
-            totalGlyphs: font.glyphs.length
+            totalGlyphs: font.glyphs ? font.glyphs.length : 0
           };
 
           onFontLoaded(font, file.name, fontMetadata, buffer);
