@@ -1,8 +1,5 @@
-node_modules/
-build/
-dist/
-coverage/
-.DS_Store
+node_modules
+dist
+.vercel
+tests/core.mjs
 *.log
-.env*
-!.env.example

@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
 import * as opentype from 'opentype.js';
 import { Upload, FileType, CheckCircle, Info } from 'lucide-react';
-import { FontMetadata } from '../types';
+import { FontMetadata } from '../../core/session';
+import { parseFontResilient } from '../../core/index';
 
 interface FontUploaderProps {
   onFontLoaded: (font: opentype.Font, filename: string, metadata: FontMetadata, rawBuffer: ArrayBuffer) => void;
@@ -31,8 +32,8 @@ const getFontName = (font: any, key: string, defaultValue: string): string => {
     }
   }
 
-  // 2. Check platform-specific structures (e.g., font.names.windows.fontFamily)
-  const platforms = ['windows', 'macintosh'];
+  // 2. Check platform-specific structures (windows, unicode, macintosh)
+  const platforms = ['windows', 'unicode', 'macintosh'];
   for (const plat of platforms) {
     const platObj = font.names[plat]?.[key];
     if (platObj) {
@@ -66,7 +67,8 @@ export const FontUploader: React.FC<FontUploaderProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
-    if (!file.name.endsWith('.otf') && !file.name.endsWith('.ttf')) {
+    const lowerName = file.name.toLowerCase();
+    if (!lowerName.endsWith('.otf') && !lowerName.endsWith('.ttf') && !lowerName.endsWith('.woff')) {
       setError('Vui lòng tải lên file font định dạng .otf hoặc .ttf');
       return;
     }
@@ -79,39 +81,9 @@ export const FontUploader: React.FC<FontUploaderProps> = ({
       reader.onload = async (e) => {
         try {
           const buffer = e.target?.result as ArrayBuffer;
-          const font = opentype.parse(buffer);
-          
-          // Retrieve metadata safely
-          const family = getFontName(font, 'fontFamily', 'Không rõ');
-          const subfamily = getFontName(font, 'fontSubfamily', 'Regular');
-          const name = getFontName(font, 'fullName', `${family} ${subfamily}`);
-          
-          // Safely fetch unitsPerEm
-          const unitsPerEm = font.unitsPerEm || font.tables?.head?.unitsPerEm || 1000;
-
-          // Safely fetch capHeight and xHeight, or default based on ascender
-          let capHeight = 700;
-          let xHeight = 500;
-          if (font.tables.os2) {
-            if (font.tables.os2.sCapHeight) capHeight = font.tables.os2.sCapHeight;
-            if (font.tables.os2.sxHeight) xHeight = font.tables.os2.sxHeight;
-          }
-
-          const fontMetadata: FontMetadata = {
-            name,
-            family,
-            subfamily,
-            unitsPerEm,
-            ascender: font.ascender || 1000,
-            descender: font.descender || -200,
-            capHeight,
-            xHeight,
-            totalGlyphs: font.glyphs ? font.glyphs.length : 0
-          };
-
-          onFontLoaded(font, file.name, fontMetadata, buffer);
-        } catch (parseError) {
-          console.error(parseError);
+          processFontBuffer(buffer, file.name);
+        } catch (parseError: any) {
+          console.warn('Lỗi đọc file font:', parseError);
           setError('Không thể đọc file font này. File có thể bị hỏng hoặc không đúng định dạng OpenType/TrueType.');
         } finally {
           setLoading(false);
@@ -125,6 +97,62 @@ export const FontUploader: React.FC<FontUploaderProps> = ({
     } catch (err) {
       console.error(err);
       setError('Đã xảy ra lỗi không xác định.');
+      setLoading(false);
+    }
+  };
+
+  const processFontBuffer = (buffer: ArrayBuffer, nameOfFile: string) => {
+    // Falls back to dropping broken GPOS/GSUB/GDEF/kern so fonts exported by
+    // older builds of these tools can still be re-opened.
+    const { font, degraded } = parseFontResilient(buffer);
+    if (degraded) {
+      console.warn('Font có bảng layout hỏng (GPOS/GSUB/GDEF/kern); đã bỏ để đọc được outline.');
+    }
+    
+    // Retrieve metadata safely
+    const family = getFontName(font, 'fontFamily', 'Không rõ');
+    const subfamily = getFontName(font, 'fontSubfamily', 'Regular');
+    const name = getFontName(font, 'fullName', `${family} ${subfamily}`);
+    
+    // Safely fetch unitsPerEm
+    const unitsPerEm = font.unitsPerEm || font.tables?.head?.unitsPerEm || 1000;
+
+    // Safely fetch capHeight and xHeight, or default based on ascender
+    let capHeight = 700;
+    let xHeight = 500;
+    if (font.tables?.os2) {
+      if (font.tables.os2.sCapHeight) capHeight = font.tables.os2.sCapHeight;
+      if (font.tables.os2.sxHeight) xHeight = font.tables.os2.sxHeight;
+    }
+
+    const fontMetadata: FontMetadata = {
+      name,
+      family,
+      subfamily,
+      unitsPerEm,
+      ascender: font.ascender || 1000,
+      descender: font.descender || -200,
+      capHeight,
+      xHeight,
+      totalGlyphs: font.glyphs ? font.glyphs.length : 0
+    };
+
+    onFontLoaded(font, nameOfFile, fontMetadata, buffer);
+  };
+
+  const handleLoadSampleFont = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('https://cdn.jsdelivr.net/fontsource/fonts/roboto@latest/latin-400-normal.ttf');
+      if (!res.ok) throw new Error('Không thể tải font mẫu từ CDN');
+      const buffer = await res.arrayBuffer();
+      processFontBuffer(buffer, 'Roboto-Regular.ttf');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Lỗi khi tải font mẫu');
+    } finally {
       setLoading(false);
     }
   };
@@ -190,7 +218,18 @@ export const FontUploader: React.FC<FontUploaderProps> = ({
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-neutral-50 dark:bg-neutral-900 rounded-full border border-neutral-100 text-xs text-neutral-500">
             <FileType className="w-3.5 h-3.5" />
-            <span>Hỗ trợ OpenType & TrueType Font</span>
+            <span>Hỗ trợ OpenType & TrueType Font (.otf, .ttf)</span>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800/80 w-full flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={handleLoadSampleFont}
+              disabled={loading}
+              className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold rounded-xl transition border border-neutral-200/80 shadow-2xs flex items-center gap-2 disabled:opacity-50"
+            >
+              <span>Dùng font mẫu để trải nghiệm ngay (Roboto)</span>
+            </button>
           </div>
 
           {error && (
