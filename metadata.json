@@ -1,0 +1,8 @@
+{
+  "name": "Việt Hóa Font Tàu Nhanh",
+  "description": "Ứng dụng hỗ trợ Việt hóa font chữ tàu nhanh",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
