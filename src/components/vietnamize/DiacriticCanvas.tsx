@@ -66,6 +66,18 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
   const [viewMode, setViewMode] = useState<'composed' | 'native' | 'overlay'>('composed');
   const [copyToast, setCopyToast] = useState<string | null>(null);
 
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  });
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
@@ -176,11 +188,11 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
     // Subtle background
-    ctx.fillStyle = '#fafafa';
+    ctx.fillStyle = isDarkMode ? '#1b1b24' : '#fafafa';
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 
     // Grid dots
-    ctx.fillStyle = '#e2e8f0';
+    ctx.fillStyle = isDarkMode ? '#2e2e3c' : '#e2e8f0';
     for (let x = 15; x < cssWidth; x += 24) {
       for (let y = 15; y < cssHeight; y += 24) {
         ctx.fillRect(x, y, 1, 1);
@@ -220,7 +232,7 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
         ctx.font = '500 10px monospace';
         const labelText = `${label} (${Math.round(yVal)})`;
         const textWidth = ctx.measureText(labelText).width;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillStyle = isDarkMode ? 'rgba(18, 18, 21, 0.9)' : 'rgba(255, 255, 255, 0.9)';
         
         ctx.strokeStyle = color;
         ctx.lineWidth = 0.5;
@@ -232,7 +244,7 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
       drawHGuide(ascender, 'Ascender', '#059669', true);
       drawHGuide(capHeight, 'Cap Height', '#2563eb', true);
       drawHGuide(xHeight, 'x-Height', '#7c3aed', true);
-      drawHGuide(0, 'Baseline', '#0f172a', false, true);
+      drawHGuide(0, 'Baseline', isDarkMode ? '#f4f4f5' : '#0f172a', false, true);
       drawHGuide(descender, 'Descender', '#e11d48', true);
 
       // Vertical guides
@@ -270,8 +282,8 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
     // Render Native Glyph if native or overlay mode
     if ((viewMode === 'native' || viewMode === 'overlay') && isNativeAvailable && testNativeGlyph) {
       const nativePath = testNativeGlyph.getPath(fontStartX, baselineY, scaleFactor * upm);
-      nativePath.fill = viewMode === 'overlay' ? 'rgba(245, 158, 11, 0.35)' : '#0f172a';
-      nativePath.stroke = viewMode === 'overlay' ? '#d97706' : '#020617';
+      nativePath.fill = viewMode === 'overlay' ? 'rgba(245, 158, 11, 0.35)' : (isDarkMode ? '#f4f4f5' : '#0f172a');
+      nativePath.stroke = viewMode === 'overlay' ? '#d97706' : (isDarkMode ? '#e4e4e7' : '#020617');
       nativePath.lineWidth = 1.5;
       nativePath.draw(ctx);
     }
@@ -296,8 +308,8 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
           fontPath = baseGlyph.getPath(fontStartX, baselineY, scaleFactor * upm);
         }
 
-        fontPath.fill = viewMode === 'overlay' ? 'rgba(148, 163, 184, 0.25)' : 'rgba(148, 163, 184, 0.4)';
-        fontPath.stroke = viewMode === 'overlay' ? 'rgba(71, 85, 105, 0.5)' : 'rgba(71, 85, 105, 0.7)';
+        fontPath.fill = viewMode === 'overlay' ? (isDarkMode ? 'rgba(148, 163, 184, 0.25)' : 'rgba(148, 163, 184, 0.25)') : (isDarkMode ? '#f4f4f5' : '#0f172a');
+        fontPath.stroke = viewMode === 'overlay' ? (isDarkMode ? 'rgba(148, 163, 184, 0.5)' : 'rgba(71, 85, 105, 0.5)') : (isDarkMode ? '#e4e4e7' : 'rgba(71, 85, 105, 0.7)');
         fontPath.lineWidth = 1;
         fontPath.draw(ctx);
 
@@ -355,8 +367,8 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
 
           ctx.beginPath();
           ctx.setLineDash([]);
-          ctx.strokeStyle = viewMode === 'overlay' ? '#0f172a' : '#020617';
-          ctx.fillStyle = viewMode === 'overlay' ? 'rgba(15, 23, 42, 0.85)' : '#0f172a';
+          ctx.strokeStyle = viewMode === 'overlay' ? (isDarkMode ? '#fbbf24' : '#0f172a') : (isDarkMode ? '#f59e0b' : '#020617');
+          ctx.fillStyle = viewMode === 'overlay' ? (isDarkMode ? 'rgba(251, 191, 36, 0.9)' : 'rgba(15, 23, 42, 0.85)') : (isDarkMode ? '#fbbf24' : '#0f172a');
           ctx.lineWidth = 1.5;
 
           finalCmds.forEach((cmd) => {
@@ -400,40 +412,39 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
 
     // Overlay legend
     if (viewMode === 'overlay' && isNativeAvailable) {
-      const legendText = '🟧 Design gốc font   |   ⬛ Dấu design mới';
+      const legendText = isDarkMode ? '🟧 Design gốc font   |   ⬜ Dấu design mới' : '🟧 Design gốc font   |   ⬛ Dấu design mới';
       ctx.font = 'bold 10px sans-serif';
       const textW = ctx.measureText(legendText).width;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fillStyle = isDarkMode ? 'rgba(28, 28, 38, 0.95)' : 'rgba(255, 255, 255, 0.95)';
       ctx.fillRect(cssWidth / 2 - textW / 2 - 8, 10, textW + 16, 20);
       ctx.strokeStyle = '#f59e0b';
       ctx.lineWidth = 1;
       ctx.strokeRect(cssWidth / 2 - textW / 2 - 8, 10, textW + 16, 20);
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = isDarkMode ? '#f4f4f5' : '#1e293b';
       ctx.fillText(legendText, cssWidth / 2 - textW / 2, 24);
     }
 
     ctx.restore();
-  }, [font, fontMetadata, templates, rules, activeDiaId, zoom, showReference, showGuides, isCapital, selectedBaseChar, viewMode, isNativeAvailable, testNativeGlyph, containerSize]);
+  }, [font, fontMetadata, templates, rules, activeDiaId, zoom, showReference, showGuides, isCapital, selectedBaseChar, viewMode, isNativeAvailable, testNativeGlyph, containerSize, isDarkMode]);
 
   return (
     <div className="flex flex-col h-full space-y-3">
       {/* Top Header Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2">
         <div className="flex items-center gap-2">
-          
-          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-md border border-indigo-200">
+          <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-500/40">
             {activeTemplate?.name || activeDiaId}
           </span>
         </div>
 
         {/* Action Toggles: Reference & Guides & Zoom */}
         <div className="flex items-center gap-2 text-xs">
-          <label className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-600 hover:text-neutral-900 cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer select-none">
             <input
               type="checkbox"
               checked={showReference}
               onChange={(e) => setShowReference(e.target.checked)}
-              className="w-3.5 h-3.5 accent-neutral-900 rounded cursor-pointer"
+              className="w-3.5 h-3.5 accent-neutral-900 dark:accent-amber-500 rounded cursor-pointer"
             />
             <span>Hiện chữ gốc</span>
           </label>
@@ -443,30 +454,30 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
             onClick={() => setShowGuides(!showGuides)}
             className={`px-2 py-0.5 text-[10px] font-bold rounded-md border transition cursor-pointer ${
               showGuides
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                : 'bg-white text-neutral-500 border-neutral-200 hover:text-neutral-900'
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/50'
+                : 'bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             {showGuides ? '✓ Đường gióng' : 'Đường gióng'}
           </button>
 
           {/* Zoom buttons */}
-          <div className="flex items-center gap-0.5 bg-neutral-100 p-0.5 rounded-lg border border-neutral-200 text-xs">
+          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
             <button
               type="button"
               onClick={() => setZoom((prev) => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10))}
-              className="p-1 hover:bg-white text-neutral-700 rounded-md transition cursor-pointer"
+              className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-md transition cursor-pointer"
               title="Thu nhỏ"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="font-mono font-bold text-[10px] text-neutral-900 px-1 min-w-[32px] text-center">
+            <span className="font-mono font-bold text-[10px] text-neutral-900 dark:text-neutral-100 px-1 min-w-[32px] text-center">
               {Math.round(zoom * 100)}%
             </span>
             <button
               type="button"
               onClick={() => setZoom((prev) => Math.min(3.5, Math.round((prev + 0.1) * 10) / 10))}
-              className="p-1 hover:bg-white text-neutral-700 rounded-md transition cursor-pointer"
+              className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-md transition cursor-pointer"
               title="Phóng to"
             >
               <ZoomIn className="w-3.5 h-3.5" />
@@ -475,7 +486,7 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
               <button
                 type="button"
                 onClick={() => setZoom(1.0)}
-                className="p-1 hover:bg-white text-neutral-500 hover:text-neutral-900 rounded-md transition cursor-pointer"
+                className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-500 dark:text-amber-400 hover:text-neutral-900 dark:hover:text-amber-300 rounded-md transition cursor-pointer"
                 title="Reset zoom"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -486,10 +497,10 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
       </div>
 
       {/* Sub-bar: Base Character selector & Case & View Mode */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-neutral-50 p-2 rounded-xl border border-neutral-200/80">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-neutral-50 dark:bg-[#1e1e26] p-2 rounded-xl border border-neutral-200/80 dark:border-[#353545]">
         {/* Applicable base chars */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-bold text-neutral-500">Chữ gốc:</span>
+          <span className="text-[11px] font-bold text-neutral-500 dark:text-neutral-400">Chữ gốc:</span>
           <div className="flex items-center gap-1">
             {(APPLICABLE_CHARS[activeDiaId] || ['a']).map((char) => {
               const displayChar = isCapital ? char.toUpperCase() : char.toLowerCase();
@@ -501,8 +512,8 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
                   onClick={() => setSelectedBaseChar(char)}
                   className={`w-6 h-6 text-xs font-bold rounded-md border transition flex items-center justify-center cursor-pointer ${
                     isSel
-                      ? 'bg-neutral-950 text-white border-neutral-950 shadow-2xs'
-                      : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+                      ? 'bg-neutral-950 text-white border-neutral-950 dark:bg-amber-500 dark:text-neutral-950 dark:border-amber-400 font-black shadow-2xs'
+                      : 'bg-white dark:bg-[#282834] text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-[#3e3e50] hover:border-neutral-400 dark:hover:border-neutral-500'
                   }`}
                 >
                   {displayChar}
@@ -511,38 +522,42 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
             })}
           </div>
           {/* Case Toggle */}
-        <div className="flex items-center bg-neutral-200/70 p-0.5 rounded-lg border border-neutral-200 text-[10px] font-bold">
-          <button
-            type="button"
-            onClick={() => setIsCapital(false)}
-            className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
-              !isCapital ? 'bg-white text-neutral-950 shadow-2xs' : 'text-neutral-500 hover:text-neutral-900'
-            }`}
-          >
-            thường
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsCapital(true)}
-            className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
-              isCapital ? 'bg-white text-neutral-950 shadow-2xs' : 'text-neutral-500 hover:text-neutral-900'
-            }`}
-          >
-            HOA
-          </button>
+          <div className="flex items-center bg-neutral-200/70 dark:bg-[#282834] p-0.5 rounded-lg border border-neutral-200 dark:border-[#3e3e50] text-[10px] font-bold">
+            <button
+              type="button"
+              onClick={() => setIsCapital(false)}
+              className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                !isCapital 
+                  ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 shadow-2xs font-extrabold' 
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              thường
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCapital(true)}
+              className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                isCapital 
+                  ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 shadow-2xs font-extrabold' 
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              HOA
+            </button>
+          </div>
         </div>
-        </div>
-
-        
 
         {/* View Mode (if native glyph available) */}
         {isNativeAvailable ? (
-          <div className="flex items-center p-0.5 bg-amber-100/80 rounded-lg border border-amber-300/80 text-[10px] font-bold">
+          <div className="flex items-center p-0.5 bg-amber-100/80 dark:bg-[#282834] rounded-lg border border-amber-300/80 dark:border-[#3e3e50] text-[10px] font-bold">
             <button
               type="button"
               onClick={() => setViewMode('composed')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
-                viewMode === 'composed' ? 'bg-white text-neutral-950 shadow-2xs' : 'text-amber-900 hover:text-neutral-950'
+                viewMode === 'composed' 
+                  ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 shadow-2xs font-extrabold' 
+                  : 'text-amber-900 dark:text-neutral-300 hover:text-neutral-950 dark:hover:text-white'
               }`}
             >
               Dấu design
@@ -551,7 +566,9 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
               type="button"
               onClick={() => setViewMode('native')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
-                viewMode === 'native' ? 'bg-white text-neutral-950 shadow-2xs' : 'text-amber-900 hover:text-neutral-950'
+                viewMode === 'native' 
+                  ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 shadow-2xs font-extrabold' 
+                  : 'text-amber-900 dark:text-neutral-300 hover:text-neutral-950 dark:hover:text-white'
               }`}
             >
               Font gốc ({testTargetChar})
@@ -560,28 +577,30 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
               type="button"
               onClick={() => setViewMode('overlay')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
-                viewMode === 'overlay' ? 'bg-amber-900 text-white shadow-2xs' : 'text-amber-900 hover:text-neutral-950'
+                viewMode === 'overlay' 
+                  ? 'bg-amber-900 dark:bg-amber-500 text-white dark:text-neutral-950 shadow-2xs font-extrabold' 
+                  : 'text-amber-900 dark:text-neutral-300 hover:text-neutral-950 dark:hover:text-white'
               }`}
             >
               Overlay
             </button>
           </div>
         ) : (
-          <span className="text-[10px] text-neutral-400 font-mono">
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-400 font-mono">
             Tự ghép: {testTargetChar || refChar}
           </span>
         )}
       </div>
 
       {/* Canvas Area */}
-      <div ref={containerRef} className="relative flex-1 min-h-[300px] border border-neutral-200/90 rounded-2xl bg-neutral-50 overflow-hidden shadow-inner flex items-center justify-center">
+      <div ref={containerRef} className="relative flex-1 min-h-[300px] border border-neutral-200/90 dark:border-[#353545] rounded-2xl bg-neutral-50 dark:bg-[#1b1b24] overflow-hidden shadow-inner flex items-center justify-center">
         <canvas ref={canvasRef} className="w-full h-full block" />
 
         {/* Subtle Bottom Bar on Canvas */}
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[10px] font-mono pointer-events-none">
-          <div className="bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-md border border-neutral-200/80 text-neutral-600 shadow-2xs">
-            {isCapital ? 'Chữ Hoa' : 'Chữ thường'}: <strong>{refChar}</strong> | Ký tự kết quả:{' '}
-            <strong>{testTargetChar || refChar}</strong>
+          <div className="bg-white/90 dark:bg-[#262632]/90 backdrop-blur-xs px-2.5 py-1 rounded-md border border-neutral-200/80 dark:border-[#3a3a4c] text-neutral-700 dark:text-neutral-200 shadow-xs">
+            {isCapital ? 'Chữ Hoa' : 'Chữ thường'}: <strong className="text-amber-600 dark:text-amber-400">{refChar}</strong> | Ký tự kết quả:{' '}
+            <strong className="text-indigo-600 dark:text-cyan-400">{testTargetChar || refChar}</strong>
           </div>
 
           {copyToast && (

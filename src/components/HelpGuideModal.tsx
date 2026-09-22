@@ -15,28 +15,24 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
       onClick={onClose}
     >
       <div 
-        className="bg-white border border-neutral-200 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in"
+        className="bg-white dark:bg-[#1b1b24] border border-neutral-200 dark:border-[#353545] rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in text-neutral-900 dark:text-neutral-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
+        <div className="px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
-              <BookOpen className="w-5 h-5" />
-            </div>
+         
             <div>
-              <h2 className="text-base font-extrabold text-neutral-900 tracking-tight">
+              <h2 className="text-base font-extrabold text-neutral-900 dark:text-white tracking-tight">
                 Hướng Dẫn Sử Dụng Ứng Dụng Việt Hóa Font
               </h2>
-              <p className="text-xs text-neutral-500 font-medium">
-                Các bước thực hiện để đạt kết quả Việt hóa tối ưu nhất
-              </p>
+             
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-neutral-400 hover:text-neutral-800 hover:bg-neutral-200/60 rounded-xl transition cursor-pointer"
+            className="p-1.5 text-neutral-400 hover:text-neutral-800 dark:hover:text-white hover:bg-neutral-200/60 dark:hover:bg-[#2e2e3e] rounded-xl transition cursor-pointer"
             title="Đóng"
           >
             <X className="w-5 h-5" />
@@ -44,9 +40,9 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
         </div>
 
         {/* Modal Body - Scrollable Content */}
-        <div className="p-6 overflow-y-auto space-y-6 text-neutral-800 text-sm leading-relaxed">
+        <div className="p-6 overflow-y-auto space-y-6 text-neutral-800 dark:text-neutral-200 text-sm leading-relaxed">
           
-          <div className="bg-indigo-50/70 border border-indigo-100 p-4 rounded-xl text-indigo-950 text-xs sm:text-sm font-medium leading-normal flex items-start gap-3">
+          <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-800/40 p-4 rounded-xl text-indigo-950 dark:text-indigo-200 text-xs sm:text-sm font-medium leading-normal flex items-start gap-3">
             <div>
               Ứng dụng hỗ trợ Việt hóa font chữ OTF/TTF bằng cách tự động tạo đầy đủ bộ ký tự tiếng Việt từ hệ thống dấu do bạn thiết lập. Để đạt kết quả tốt nhất, hãy đọc các thông tin dưới đây.
             </div>
@@ -56,15 +52,15 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
             
             {/* Bước 1 */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white text-xs font-mono font-bold flex items-center justify-center shrink-0">1</span>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 text-xs font-mono font-bold flex items-center justify-center shrink-0">1</span>
                Tải font và thiết lập bộ dấu
               </h3>
-              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600">
+              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-300">
                 <p>
                   Sau khi tải font (.otf hoặc .ttf) lên, tại Tab 1 bạn có thể tùy chỉnh 9 thành phần cơ bản của tiếng Việt gồm:
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-neutral-50 p-3 rounded-xl border border-neutral-200/80 font-medium text-xs text-neutral-700">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-neutral-50 dark:bg-[#20202b] p-3 rounded-xl border border-neutral-200/80 dark:border-[#353545] font-medium text-xs text-neutral-700 dark:text-neutral-300">
                   <span>• Dấu sắc</span>
                   <span>• Dấu huyền</span>
                   <span>• Dấu hỏi</span>
@@ -78,7 +74,7 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
                 <p>
                   Mỗi dấu đều có giao diện để điều chỉnh vị trí, kích thước và tỷ lệ cùng các gợi ý thiết kế.
                 </p>
-                <p className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-amber-900 text-xs">
+                <p className="bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 p-3 rounded-xl text-amber-900 dark:text-amber-200 text-xs">
                   <strong>Mẹo:</strong> Nếu cảm thấy thiết kế gợi ý chưa phù hợp với font của mình, bạn hoàn toàn có thể tự thiết kế lại bằng vector trong Adobe Illustrator, sau đó copy nội dung SVG/vector và dán vào ô <strong>Mã SVG / Vector</strong> ở bên phải.
                 </p>
               </div>
@@ -86,16 +82,16 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
 
             {/* Bước 2 */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white text-xs font-mono font-bold flex items-center justify-center shrink-0">2</span>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 text-xs font-mono font-bold flex items-center justify-center shrink-0">2</span>
                 Tự động tạo toàn bộ ký tự tiếng Việt
               </h3>
-              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600">
+              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-300">
                 <p>
                   Sau khi hoàn thành bộ dấu, hệ thống sẽ tự động sinh toàn bộ ký tự tiếng Việt từ các thành phần bạn đã cung cấp.
                 </p>
-                <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-xs space-y-1 text-neutral-700">
-                  <p className="font-bold text-neutral-900">Lưu ý:</p>
+                <div className="bg-neutral-50 dark:bg-[#20202b] p-3 rounded-xl border border-neutral-200 dark:border-[#353545] text-xs space-y-1 text-neutral-700 dark:text-neutral-300">
+                  <p className="font-bold text-neutral-900 dark:text-white">Lưu ý:</p>
                   <p>• Kiểm tra cả chữ hoa và chữ thường, vì vị trí dấu của hai bộ ký tự có thể khác nhau.</p>
                   <p>• Đặc biệt nên kiểm tra kỹ ký tự <strong>đ</strong> và <strong>Đ</strong>.</p>
                 </div>
@@ -104,13 +100,13 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
 
             {/* Bước 3 */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white text-xs font-mono font-bold flex items-center justify-center shrink-0">3</span>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 text-xs font-mono font-bold flex items-center justify-center shrink-0">3</span>
                 Cấu hình kiểu ghép dấu kép
               </h3>
-              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600">
+              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-300">
                 <p>
-                  Bạn có thể thiết lập cách hệ thống ghép các dấu kép cho những ký tự như: <code className="bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-800 font-mono text-xs">ấ</code>, <code className="bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-800 font-mono text-xs">ề</code>, <code className="bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-800 font-mono text-xs">ố</code>, <code className="bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-800 font-mono text-xs">ữ</code>...
+                  Bạn có thể thiết lập cách hệ thống ghép các dấu kép cho những ký tự như: <code className="bg-neutral-100 dark:bg-[#282838] px-1.5 py-0.5 rounded text-neutral-800 dark:text-amber-300 font-mono text-xs">ấ</code>, <code className="bg-neutral-100 dark:bg-[#282838] px-1.5 py-0.5 rounded text-neutral-800 dark:text-amber-300 font-mono text-xs">ề</code>, <code className="bg-neutral-100 dark:bg-[#282838] px-1.5 py-0.5 rounded text-neutral-800 dark:text-amber-300 font-mono text-xs">ố</code>, <code className="bg-neutral-100 dark:bg-[#282838] px-1.5 py-0.5 rounded text-neutral-800 dark:text-amber-300 font-mono text-xs">ữ</code>...
                 </p>
                 <p>
                   Tùy chọn này giúp kiểm soát chính xác thứ tự và cách kết hợp dấu trên từng nhóm ký tự.
@@ -120,11 +116,11 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
 
             {/* Bước 4 */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white text-xs font-mono font-bold flex items-center justify-center shrink-0">4</span>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 text-xs font-mono font-bold flex items-center justify-center shrink-0">4</span>
                 Chỉnh sửa từng ký tự
               </h3>
-              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600">
+              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-300">
                 <p>
                   Nếu thực sự có tâm và muốn tinh chỉnh kỹ hơn, App cũng cho phép bạn chỉnh dấu riêng cho từng ký tự.
                 </p>
@@ -136,11 +132,11 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
 
             {/* Bước 5 */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white text-xs font-mono font-bold flex items-center justify-center shrink-0">5</span>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 text-xs font-mono font-bold flex items-center justify-center shrink-0">5</span>
                 Kiểm tra kết quả
               </h3>
-              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600">
+              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-300">
                 <p>
                   Phía dưới giao diện luôn có khu vực gõ thử font để kiểm tra kết quả sau mỗi lần chỉnh sửa.
                 </p>
@@ -152,34 +148,30 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
 
             {/* Bước 6 */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white text-xs font-mono font-bold flex items-center justify-center shrink-0">6</span>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 text-xs font-mono font-bold flex items-center justify-center shrink-0">6</span>
                 Lưu dự án
               </h3>
-              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600">
+              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-300">
                 <p>
-                  Ứng dụng hoạt động hoàn toàn trên trình duyệt nên không tự động lưu - Vibecode frontend nên chỉ được vậy thôi.
+                  Ứng dụng hoạt động hoàn toàn trên trình duyệt, có hỗ trợ lưu phiên làm việc.
                 </p>
-                <p>Hãy chủ động lưu:</p>
+                <p>Nhưng để chắc chắn, hãy chủ động lưu:</p>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>File font</li>
                   <li>Hoặc file dự án (.ftn)</li>
                 </ul>
-                <p>nếu muốn tiếp tục làm việc sau này.</p>
-                <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-red-900 text-xs font-medium flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                  <span><strong>Lưu ý:</strong> Chỉ cần tải lại trang (F5), toàn bộ dữ liệu chưa lưu sẽ bị mất.</span>
-                </div>
+                               
               </div>
             </div>
 
             {/* Bước 7 */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white text-xs font-mono font-bold flex items-center justify-center shrink-0">7</span>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 text-xs font-mono font-bold flex items-center justify-center shrink-0">7</span>
                 Đổi tên font trước khi xuất
               </h3>
-              <div className="pl-8 text-xs sm:text-sm text-neutral-600">
+              <div className="pl-8 text-xs sm:text-sm text-neutral-600 dark:text-neutral-300">
                 <p>
                   Trước khi lưu font đã Việt hóa, hãy đổi tên file để tránh ghi đè hoặc nhầm lẫn với font gốc chưa Việt hóa.
                 </p>
@@ -188,18 +180,18 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({ isOpen = true, o
 
             {/* Bước 8 */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white text-xs font-mono font-bold flex items-center justify-center shrink-0">8</span>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 text-xs font-mono font-bold flex items-center justify-center shrink-0">8</span>
                 Auto Kerning
               </h3>
-              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600">
+              <div className="pl-8 space-y-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-300">
                 <p>
                   Mặc định, toàn bộ ký tự tiếng Việt được tạo ra sẽ kế thừa kerning của font gốc.
                 </p>
                 <p>
                   Tuy nhiên, một số font có kerning chưa tốt hoặc không phù hợp với tiếng Việt. Vì vậy, app cung cấp tính năng Auto Kerning để tự động tính toán lại khoảng cách giữa các ký tự.
                 </p>
-                <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl text-amber-950 text-xs space-y-1.5">
+                <div className="bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 p-3.5 rounded-xl text-amber-950 dark:text-amber-200 text-xs space-y-1.5">
                   <p className="font-bold">Lưu ý quan trọng:</p>
                   <p>• Auto Kerning sẽ xóa toàn bộ kerning gốc của font trước khi tính toán lại.</p>
                   <p>• Thuật toán không hoàn hảo và chỉ nên sử dụng khi thực sự cần thiết.</p>

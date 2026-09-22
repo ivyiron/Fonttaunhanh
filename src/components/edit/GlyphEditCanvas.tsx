@@ -35,6 +35,18 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
   const [zoom, setZoom] = useState<number>(1.0);
   const [overlayOpacity, setOverlayOpacity] = useState<number>(0.5);
 
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  });
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   // Dragging state for direct canvas interactive positioning
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number; initialOffsetX: number; initialOffsetY: number }>({
@@ -44,7 +56,7 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
     initialOffsetY: 0
   });
 
-  // Track container sizing
+  // Track container sizing & wheel zoom
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -59,7 +71,31 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
     updateSize();
     const observer = new ResizeObserver(updateSize);
     observer.observe(container);
-    return () => observer.disconnect();
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = -e.deltaY;
+      setZoom((prev) => {
+        let next: number;
+        if (Math.abs(delta) >= 40) {
+          // Discrete mouse wheel ticks
+          const step = delta > 0 ? 0.1 : -0.1;
+          next = Math.round((prev + step) * 10) / 10;
+        } else {
+          // Smooth touchpad or fine-scrolling wheel
+          const factor = 1 + delta * 0.002;
+          next = Math.round(prev * factor * 100) / 100;
+        }
+        return Math.min(4.0, Math.max(0.3, next));
+      });
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      observer.disconnect();
+      container.removeEventListener('wheel', handleWheel);
+    };
   }, []);
 
   // Find original glyph in font
@@ -131,7 +167,7 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
     // Subtle background grid
-    ctx.fillStyle = '#fafafa';
+    ctx.fillStyle = isDarkMode ? '#1b1b24' : '#fafafa';
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 
     // Compute coordinate mapping:
@@ -143,7 +179,7 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
     const scaleFactor = Math.max(0.1, baseScale * zoom);
 
     // Baseline placement: placed so ascender and descender are centered vertically
-    const fontStartX = Math.max(paddingX, (cssWidth - currentAdvanceWidth * scaleFactor) / 2);
+    const fontStartX = (cssWidth - currentAdvanceWidth * scaleFactor) / 2;
     const baselineY = cssHeight / 2 + (ascender + descender) * 0.5 * scaleFactor;
 
     // 1. Draw Guidelines
@@ -177,7 +213,7 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
       // x-Height (indigo)
       drawHGuide(xHeight, '#7c3aed', 'x-Height', true);
       // Baseline (dark slate solid)
-      drawHGuide(0, '#0f172a', 'Baseline', false);
+      drawHGuide(0, isDarkMode ? '#f4f4f5' : '#0f172a', 'Baseline', false);
       // Descender (rose)
       drawHGuide(descender, '#e11d48', 'Descender', true);
 
@@ -230,8 +266,8 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
           origPath.lineWidth = 1.2;
         } else {
           // Pure original view
-          origPath.fill = '#0f172a';
-          origPath.stroke = '#020617';
+          origPath.fill = isDarkMode ? '#f4f4f5' : '#0f172a';
+          origPath.stroke = isDarkMode ? '#e4e4e7' : '#020617';
           origPath.lineWidth = 0.5;
         }
         origPath.draw(ctx);
@@ -261,8 +297,8 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
 
           ctx.save();
           ctx.beginPath();
-          ctx.fillStyle = viewMode === 'overlay' ? 'rgba(15, 23, 42, 0.85)' : '#0f172a';
-          ctx.strokeStyle = '#020617';
+          ctx.fillStyle = viewMode === 'overlay' ? (isDarkMode ? 'rgba(251, 191, 36, 0.9)' : 'rgba(15, 23, 42, 0.85)') : (isDarkMode ? '#f4f4f5' : '#0f172a');
+          ctx.strokeStyle = viewMode === 'overlay' ? (isDarkMode ? '#fbbf24' : '#0f172a') : (isDarkMode ? '#e4e4e7' : '#020617');
           ctx.lineWidth = 1.2;
 
           transformed.forEach((cmd) => {
@@ -330,15 +366,15 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
       const pillX = (cssWidth - pillW) / 2;
       const pillY = 12;
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      ctx.fillStyle = isDarkMode ? 'rgba(24, 24, 27, 0.96)' : 'rgba(255, 255, 255, 0.96)';
       ctx.beginPath();
       ctx.roundRect(pillX, pillY, pillW, pillH, 6);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(203, 213, 225, 0.9)';
+      ctx.strokeStyle = isDarkMode ? '#3f3f4a' : 'rgba(203, 213, 225, 0.9)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = isDarkMode ? '#f4f4f5' : '#1e293b';
       ctx.fillText(legendText, pillX + 12, pillY + 17);
       ctx.restore();
     }
@@ -359,7 +395,8 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
     ascender,
     descender,
     capHeight,
-    xHeight
+    xHeight,
+    isDarkMode
   ]);
 
   // Handle canvas mouse drag to adjust offsetX and offsetY interactively
@@ -402,19 +439,19 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white select-none space-y-3">
+    <div className="flex flex-col h-full bg-transparent select-none space-y-3">
       {/* Top Header Controls Bar */}
-      <div className="flex flex-wrap gap-2 items-center justify-between shrink-0 bg-white border-b border-neutral-100 pb-2">
+      <div className="flex flex-wrap gap-2 items-center justify-between shrink-0 bg-transparent border-b border-neutral-100 dark:border-neutral-800 pb-2">
         
         {/* View Mode Segmented Controls */}
-        <div className="flex items-center bg-neutral-100 p-0.5 rounded-lg border border-neutral-200">
+        <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
           <button
             type="button"
             onClick={() => setViewMode('overlay')}
-            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition cursor-pointer ${
               viewMode === 'overlay'
-                ? 'bg-white text-neutral-950 font-bold shadow-2xs'
-                : 'text-neutral-600 hover:text-neutral-900'
+                ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 font-bold shadow-2xs'
+                : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -424,23 +461,22 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
           <button
             type="button"
             onClick={() => setViewMode('new')}
-            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition cursor-pointer ${
               viewMode === 'new'
-                ? 'bg-white text-neutral-950 font-bold shadow-2xs'
-                : 'text-neutral-600 hover:text-neutral-900'
+                ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 font-bold shadow-2xs'
+                : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
-            
             <span>Mới</span>
           </button>
 
           <button
             type="button"
             onClick={() => setViewMode('original')}
-            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition cursor-pointer ${
               viewMode === 'original'
-                ? 'bg-white text-neutral-950 font-bold shadow-2xs'
-                : 'text-neutral-600 hover:text-neutral-900'
+                ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 font-bold shadow-2xs'
+                : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             <span>Gốc</span>
@@ -451,7 +487,7 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
         <div className="flex items-center gap-2">
           {/* Overlay Opacity slider when in overlay mode */}
           {viewMode === 'overlay' && (
-            <div className="hidden lg:flex items-center gap-1.5 mr-2 text-[11px] text-neutral-600 whitespace-nowrap">
+            <div className="hidden lg:flex items-center gap-1.5 mr-2 text-[11px] text-neutral-600 dark:text-neutral-300 whitespace-nowrap">
               <span>Độ mờ gốc:</span>
               <input
                 type="range"
@@ -460,7 +496,7 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
                 step="0.05"
                 value={overlayOpacity}
                 onChange={(e) => setOverlayOpacity(parseFloat(e.target.value))}
-                className="w-16 h-1 bg-neutral-200 rounded accent-neutral-900 cursor-pointer"
+                className="w-16 h-1 bg-neutral-200 dark:bg-neutral-700 rounded accent-neutral-900 dark:accent-amber-500 cursor-pointer"
               />
             </div>
           )}
@@ -471,30 +507,30 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
             onClick={() => setShowGuides(!showGuides)}
             className={`px-2 py-1 text-xs font-medium whitespace-nowrap rounded-md border transition cursor-pointer ${
               showGuides
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                : 'bg-white text-neutral-600 border-neutral-200 hover:text-neutral-900'
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/50'
+                : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
-            Đường gióng
+            {showGuides ? '✓ Đường gióng' : 'Đường gióng'}
           </button>
 
           {/* Zoom buttons */}
-          <div className="flex items-center gap-0.5 bg-neutral-100 p-0.5 rounded-lg border border-neutral-200 text-xs">
+          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
             <button
               type="button"
-              onClick={() => setZoom((prev) => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10))}
-              className="p-1 hover:bg-white text-neutral-700 rounded-md transition cursor-pointer"
+              onClick={() => setZoom((prev) => Math.max(0.3, Math.round((prev - 0.1) * 10) / 10))}
+              className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-md transition cursor-pointer"
               title="Thu nhỏ"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="font-mono font-bold text-[10px] text-neutral-900 px-1 min-w-[32px] text-center">
+            <span className="font-mono font-bold text-[10px] text-neutral-900 dark:text-neutral-100 px-1 min-w-[32px] text-center">
               {Math.round(zoom * 100)}%
             </span>
             <button
               type="button"
-              onClick={() => setZoom((prev) => Math.min(3.5, Math.round((prev + 0.1) * 10) / 10))}
-              className="p-1 hover:bg-white text-neutral-700 rounded-md transition cursor-pointer"
+              onClick={() => setZoom((prev) => Math.min(4.0, Math.round((prev + 0.1) * 10) / 10))}
+              className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-md transition cursor-pointer"
               title="Phóng to"
             >
               <ZoomIn className="w-3.5 h-3.5" />
@@ -503,7 +539,7 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
               <button
                 type="button"
                 onClick={() => setZoom(1.0)}
-                className="p-1 hover:bg-white text-neutral-500 hover:text-neutral-900 rounded-md transition cursor-pointer"
+                className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-500 dark:text-amber-400 hover:text-neutral-900 dark:hover:text-amber-300 rounded-md transition cursor-pointer"
                 title="Reset zoom"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -517,7 +553,7 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
       {/* Main Interactive Canvas Area */}
       <div
         ref={containerRef}
-        className="relative flex-1 min-h-[300px] border border-neutral-200/90 rounded-2xl bg-neutral-50 overflow-hidden shadow-inner flex items-center justify-center"
+        className="relative flex-1 min-h-[300px] border border-neutral-200/90 dark:border-[#353545] rounded-2xl bg-neutral-50 dark:bg-[#1b1b24] overflow-hidden shadow-inner flex items-center justify-center"
       >
         <canvas
           ref={canvasRef}
@@ -529,8 +565,8 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
         />
 
         {/* Tip overlay at bottom */}
-        <div className="absolute bottom-2 left-3 pointer-events-none text-[10px] text-neutral-400 bg-white/80 backdrop-blur-xs px-2 py-0.5 rounded border border-neutral-200/60 flex items-center gap-1.5">
-          <Move className="w-2.5 h-2.5 text-neutral-500" />
+        <div className="absolute bottom-2 left-3 pointer-events-none text-[10px] text-neutral-600 dark:text-neutral-300 bg-white/90 dark:bg-[#262632]/95 backdrop-blur-xs px-2.5 py-1 rounded-md border border-neutral-200/80 dark:border-[#3a3a4c] flex items-center gap-1.5 shadow-xs">
+          <Move className="w-3 h-3 text-neutral-500 dark:text-amber-400" />
           <span>Kéo chuột trên canvas để di chuyển nhanh vị trí ký tự SVG</span>
         </div>
       </div>

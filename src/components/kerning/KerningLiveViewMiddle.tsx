@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Columns,
   Layers,
@@ -42,7 +42,19 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
   originalFamilyName
 }) => {
   const [previewMode, setPreviewMode] = useState<'side_by_side' | 'overlay' | 'single'>('side_by_side');
-  const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>('dark');
+  const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>(() => {
+    return typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setCanvasTheme(isDark ? 'dark' : 'light');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   const [isMultiLine, setIsMultiLine] = useState<boolean>(true);
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
 
@@ -144,15 +156,16 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
 
     {/* Theme Switcher */}
     <button
+      id="kerning-theme-toggle-btn"
       type="button"
       onClick={() => setCanvasTheme(canvasTheme === 'dark' ? 'light' : 'dark')}
-      className="p-1 rounded-lg bg-white border border-neutral-200 text-neutral-400 hover:text-neutral-900 transition cursor-pointer"
-      title="Đổi nền Sáng / Tối"
+      className="p-1.5 rounded-lg bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-900 transition cursor-pointer flex items-center gap-1"
+      title={canvasTheme === 'dark' ? 'Đang hiển thị nền Tối. Bấm để đổi sang nền Sáng (trắng)' : 'Đang hiển thị nền Sáng. Bấm để đổi sang nền Tối (đen)'}
     >
       {canvasTheme === 'dark' ? (
         <Sun className="w-3.5 h-3.5 text-amber-500" />
       ) : (
-        <Moon className="w-3.5 h-3.5 text-neutral-500" />
+        <Moon className="w-3.5 h-3.5 text-neutral-600" />
       )}
     </button>
 
@@ -236,6 +249,8 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
       <div className="flex-1 overflow-y-auto rounded-xl">
         {previewMode === 'overlay' ? (
           <div
+            id="kerning-overlay-canvas"
+            data-kerning-canvas={canvasTheme}
             className={`h-full min-h-[300px] p-5 rounded-xl border relative overflow-x-auto transition-colors duration-200 ${
               canvasTheme === 'dark'
                 ? 'bg-neutral-950 border-neutral-800 text-white'
@@ -247,8 +262,8 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
                 Đỏ Bóng: Font Gốc
               </span>
-              <span className="flex items-center gap-1.5 text-cyan-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block" />
+              <span className="flex items-center gap-1.5 text-cyan-500 dark:text-cyan-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 dark:bg-cyan-400 inline-block" />
                 Xanh Lam: Sau Auto Kerning
               </span>
             </div>
@@ -256,7 +271,7 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
             <div className="relative min-w-max" style={{ textAlign }}>
               {/* Layer 1: ORIGINAL */}
               <div
-                className="whitespace-pre select-none leading-relaxed"
+                className="whitespace-pre select-none leading-relaxed kerning-overlay-layer1"
                 style={{
                   fontSize: `${fontSize}px`,
                   fontFamily:
@@ -266,6 +281,10 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
                   fontKerning: 'none',
                   fontFeatureSettings: '"kern" 0',
                   color: canvasTheme === 'dark' ? 'rgba(244, 63, 94, 0.75)' : 'rgba(225, 29, 72, 0.7)',
+                  fontWeight: 400,
+                  fontSynthesis: 'none',
+                  WebkitTextStroke: '0px',
+                  textShadow: 'none',
                   whiteSpace: isMultiLine ? 'pre-wrap' : 'nowrap'
                 }}
               >
@@ -274,7 +293,7 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
 
               {/* Layer 2: KERNED */}
               <div
-                className="absolute inset-0 pointer-events-none leading-relaxed"
+                className="absolute inset-0 pointer-events-none leading-relaxed kerning-overlay-layer2"
                 style={{
                   fontSize: `${fontSize}px`,
                   fontFamily:
@@ -289,6 +308,10 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
                   letterSpacing: `${spacingRules.globalTrackingOffset}px`,
                   color: canvasTheme === 'dark' ? '#06b6d4' : '#0284c7',
                   mixBlendMode: canvasTheme === 'dark' ? 'screen' : 'multiply',
+                  fontWeight: 400,
+                  fontSynthesis: 'none',
+                  WebkitTextStroke: '0px',
+                  textShadow: 'none',
                   whiteSpace: isMultiLine ? 'pre-wrap' : 'nowrap'
                 }}
               >
@@ -305,94 +328,108 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
             {/* Box 1: Before */}
             {previewMode === 'side_by_side' && (
               <div
-  className={`p-4 rounded-xl border flex flex-col h-full transition-colors duration-200 ${
-    canvasTheme === 'dark'
-      ? 'bg-neutral-950 border-neutral-800 text-neutral-200'
-      : 'bg-white border-neutral-200 text-neutral-900 shadow-2xs'
-  }`}
->
-  <div className="h-7 shrink-0 flex justify-between items-center text-[10px] font-bold uppercase tracking-wider border-b border-neutral-200/40">
-    <span className="text-rose-500 flex items-center gap-1 font-mono">
-      <span className="w-2 h-2 rounded-full bg-rose-500" />
-      1. Gốc (Chưa Kerning)
-    </span>
+                id="kerning-box-original"
+                data-kerning-canvas={canvasTheme}
+                className={`p-4 rounded-xl border flex flex-col h-full transition-colors duration-200 ${
+                  canvasTheme === 'dark'
+                    ? 'bg-neutral-950 border-neutral-800 text-neutral-200'
+                    : 'bg-white border-neutral-200 text-neutral-900 shadow-2xs'
+                }`}
+              >
+                <div className="h-7 shrink-0 flex justify-between items-center text-[10px] font-bold uppercase tracking-wider border-b border-neutral-200/40 kerning-header-bar">
+                  <span className="text-rose-500 flex items-center gap-1 font-mono">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    1. Gốc (Chưa Kerning)
+                  </span>
 
-    <span className="font-mono text-[9px] text-neutral-400">
-      {fontMetadata?.family || 'Font Gốc'}
-    </span>
-  </div>
+                  <span className="font-mono text-[9px] text-neutral-400 kerning-meta-family">
+                    {fontMetadata?.family || 'Font Gốc'}
+                  </span>
+                </div>
 
-  <div
-    className="flex-1 min-h-0 overflow-x-auto px-2 py-3 font-normal leading-relaxed"
-    style={{
-      fontSize: `${fontSize}px`,
-      fontFamily:
-        originalRegistered && originalFamilyName
-          ? `"${originalFamilyName}", sans-serif`
-          : 'sans-serif',
-      fontKerning: 'none',
-      fontFeatureSettings: '"kern" 0',
-      textAlign,
-      whiteSpace: isMultiLine ? 'pre-wrap' : 'nowrap'
-    }}
-  >
-    {sampleText}
-  </div>
-</div>
+                <div
+                  className="flex-1 min-h-0 overflow-x-auto px-2 py-3 font-normal leading-relaxed kerning-canvas-text"
+                  style={{
+                    fontSize: `${fontSize}px`,
+                    fontFamily:
+                      originalRegistered && originalFamilyName
+                        ? `"${originalFamilyName}", sans-serif`
+                        : 'sans-serif',
+                    fontKerning: 'none',
+                    fontFeatureSettings: '"kern" 0',
+                    textAlign,
+                    color: canvasTheme === 'dark' ? '#f4f4f5' : '#18181b',
+                    fontWeight: 400,
+                    fontSynthesis: 'none',
+                    WebkitTextStroke: '0px',
+                    textShadow: 'none',
+                    whiteSpace: isMultiLine ? 'pre-wrap' : 'nowrap'
+                  }}
+                >
+                  {sampleText}
+                </div>
+              </div>
             )}
 
             {/* Box 2: After */}
             <div
-  className={`p-4 rounded-xl border flex flex-col h-full transition-colors duration-200 ${
-    canvasTheme === 'dark'
-      ? 'bg-neutral-950 border-indigo-500/50 text-white shadow-indigo-950/20'
-      : 'bg-white border-indigo-400 text-neutral-900 shadow-sm'
-  }`}
->
-  <div className="h-7 shrink-0 flex justify-between items-center text-[10px] font-bold uppercase tracking-wider border-b border-neutral-200/40">
-    <span className="text-emerald-400 flex items-center gap-1 font-mono">
-      <Check className="w-3 h-3 text-emerald-400" />
-      {previewMode === 'single'
-        ? 'Kết quả Auto Kerning'
-        : '2. Sau Auto Kerning'}{' '}
-      ({kerningPairsCount} cặp)
-    </span>
+              id="kerning-box-kerned"
+              data-kerning-canvas={canvasTheme}
+              className={`p-4 rounded-xl border flex flex-col h-full transition-colors duration-200 ${
+                canvasTheme === 'dark'
+                  ? 'bg-neutral-950 border-indigo-500/50 text-white shadow-indigo-950/20'
+                  : 'bg-white border-indigo-400 text-neutral-900 shadow-sm'
+              }`}
+            >
+              <div className="h-7 shrink-0 flex justify-between items-center text-[10px] font-bold uppercase tracking-wider border-b border-neutral-200/40 kerning-header-bar">
+                <span className="text-emerald-500 dark:text-emerald-400 flex items-center gap-1 font-mono">
+                  <Check className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
+                  {previewMode === 'single'
+                    ? 'Kết quả Auto Kerning'
+                    : '2. Sau Auto Kerning'}{' '}
+                  ({kerningPairsCount} cặp)
+                </span>
 
-    <span className="font-mono text-[9px] text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
-      {spacingRules.globalTrackingOffset > 0
-        ? `Tracking +${spacingRules.globalTrackingOffset}`
-        : 'Kerning Enabled'}
-    </span>
-  </div>
+                <span className="font-mono text-[9px] text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800 kerning-meta-badge">
+                  {spacingRules.globalTrackingOffset > 0
+                    ? `Tracking +${spacingRules.globalTrackingOffset}`
+                    : 'Kerning Enabled'}
+                </span>
+              </div>
 
-  <div
-    className="flex-1 min-h-0 overflow-x-auto px-2 py-3 font-normal leading-relaxed"
-    style={{
-      fontSize: `${fontSize}px`,
-      fontFamily:
-        compiledRegistered && compiledFamilyName
-          ? `"${compiledFamilyName}", sans-serif`
-          : originalRegistered && originalFamilyName
-          ? `"${originalFamilyName}", sans-serif`
-          : 'sans-serif',
-      fontKerning: 'normal',
-      fontFeatureSettings: '"kern" 1, "liga" 1',
-      WebkitFontFeatureSettings: '"kern" 1, "liga" 1',
-      letterSpacing: `${spacingRules.globalTrackingOffset}px`,
-      textAlign,
-      whiteSpace: isMultiLine ? 'pre-wrap' : 'nowrap'
-    }}
-  >
-    {sampleText}
-  </div>
+              <div
+                className="flex-1 min-h-0 overflow-x-auto px-2 py-3 font-normal leading-relaxed kerning-canvas-text"
+                style={{
+                  fontSize: `${fontSize}px`,
+                  fontFamily:
+                    compiledRegistered && compiledFamilyName
+                      ? `"${compiledFamilyName}", sans-serif`
+                      : originalRegistered && originalFamilyName
+                      ? `"${originalFamilyName}", sans-serif`
+                      : 'sans-serif',
+                  fontKerning: 'normal',
+                  fontFeatureSettings: '"kern" 1, "liga" 1',
+                  WebkitFontFeatureSettings: '"kern" 1, "liga" 1',
+                  letterSpacing: `${spacingRules.globalTrackingOffset}px`,
+                  textAlign,
+                  color: canvasTheme === 'dark' ? '#f4f4f5' : '#18181b',
+                  fontWeight: 400,
+                  fontSynthesis: 'none',
+                  WebkitTextStroke: '0px',
+                  textShadow: 'none',
+                  whiteSpace: isMultiLine ? 'pre-wrap' : 'nowrap'
+                }}
+              >
+                {sampleText}
+              </div>
 
-  {!compiledRegistered && (
-    <p className="text-[10px] text-amber-400/90 pt-1 flex items-center gap-1">
-      <Info className="w-3 h-3 shrink-0" />
-      <span>Đang biên dịch hiển thị kerning trực tiếp...</span>
-    </p>
-  )}
-</div>
+              {!compiledRegistered && (
+                <p className="text-[10px] text-amber-500 dark:text-amber-400 pt-1 flex items-center gap-1">
+                  <Info className="w-3 h-3 shrink-0" />
+                  <span>Đang biên dịch hiển thị kerning trực tiếp...</span>
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -47,6 +47,12 @@ import {
   prepareGsubForWrite,
   verifyGsubRoundTrip
 } from './utils/fontFeatures';
+import {
+  saveSessionToIndexedDB,
+  loadSessionFromIndexedDB,
+  clearSessionFromIndexedDB
+} from './utils/indexedDB';
+import { SessionRestoreModal } from './components/SessionRestoreModal';
 import { AlertTriangle, Check, X } from 'lucide-react';
 
 const DEFAULT_SPACING_RULES: AutoSpacingRules = {
@@ -99,12 +105,139 @@ export default function App() {
   const [customFamilyName, setCustomFamilyName] = useState<string>('');
   const [customSubfamilyName, setCustomSubfamilyName] = useState<string>('');
 
+  // Global Settings states
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('app_theme') === 'dark';
+    } catch {
+      return false;
+    }
+  });
+
+  const [skipVietnamize, setSkipVietnamize] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('skip_vietnamize') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [saveSessionEnabled, setSaveSessionEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('save_session_enabled');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  // Session Restore state
+  const [cachedSession, setCachedSession] = useState<VietnameseProjectFile | null>(null);
+  const [showRestoreModal, setShowRestoreModal] = useState<boolean>(false);
+
+  // Sync dark theme class on document element and body
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
+    try {
+      localStorage.setItem('app_theme', isDarkMode ? 'dark' : 'light');
+    } catch {
+      // ignore
+    }
+  }, [isDarkMode]);
+
+  // Sync skipVietnamize setting to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('skip_vietnamize', skipVietnamize ? 'true' : 'false');
+    } catch {
+      // ignore
+    }
+  }, [skipVietnamize]);
+
+  // Sync saveSessionEnabled setting to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('save_session_enabled', saveSessionEnabled ? 'true' : 'false');
+    } catch {
+      // ignore
+    }
+  }, [saveSessionEnabled]);
+
+  // On App Mount: Check IndexedDB for existing session
+  useEffect(() => {
+    let isMounted = true;
+    loadSessionFromIndexedDB().then((session) => {
+      if (isMounted && session && session.rawFontBufferBase64) {
+        setCachedSession(session);
+        setShowRestoreModal(true);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Custom glyph designs from "Edit tàu nhanh"
   const [customGlyphDesigns, setCustomGlyphDesigns] = useState<Record<string, CustomGlyphDesign>>({});
   const customGlyphDesignsRef = useRef<Record<string, CustomGlyphDesign>>({});
   useEffect(() => {
     customGlyphDesignsRef.current = customGlyphDesigns;
   }, [customGlyphDesigns]);
+
+  // Auto-Save session to IndexedDB when working on a font
+  useEffect(() => {
+    if (!saveSessionEnabled || !rawFontBuffer || !metadata || !filename) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        const base64Buffer = arrayBufferToBase64(rawFontBuffer);
+        const sessionPayload: VietnameseProjectFile = {
+          ftnVersion: '1.0',
+          appName: 'VietHoaTauNhanh',
+          savedAt: new Date().toISOString(),
+          filename: filename,
+          fontMetadata: metadata,
+          rawFontBufferBase64: base64Buffer,
+          customFamilyName: customFamilyName,
+          customSubfamilyName: customSubfamilyName,
+          preserveExistingGlyphs: preserveExistingGlyphs,
+          templates: templates,
+          rules: rules,
+          overrides: overrides,
+          spacingRules: spacingRules,
+          kerningSettings: kerningSettings,
+          customGlyphDesigns: customGlyphDesigns
+        };
+        saveSessionToIndexedDB(sessionPayload);
+      } catch (err) {
+        console.warn('Auto-save session to IndexedDB failed:', err);
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [
+    saveSessionEnabled,
+    rawFontBuffer,
+    metadata,
+    filename,
+    customFamilyName,
+    customSubfamilyName,
+    preserveExistingGlyphs,
+    templates,
+    rules,
+    overrides,
+    spacingRules,
+    kerningSettings,
+    customGlyphDesigns
+  ]);
 
   // Auto-dismiss success notification
   useEffect(() => {
@@ -420,64 +553,66 @@ export default function App() {
 
         const charHornInfo: Record<string, { yMin: number; yMax: number; excessRight: number }> = {};
 
-        // Compose and inject all Vietnamese composite glyphs
-        STEP2_RECIPES.forEach((recipe) => {
-          const unicode = recipe.char.charCodeAt(0);
-          const existingIndex = font.charToGlyphIndex(recipe.char);
-          const existingGlyph = existingIndex > 0 ? font.glyphs.get(existingIndex) : null;
-          const hasOriginalPath =
-            existingGlyph &&
-            existingGlyph.path &&
-            existingGlyph.path.commands &&
-            existingGlyph.path.commands.length > 0;
+        // Compose and inject all Vietnamese composite glyphs (bypassed if skipVietnamize is checked)
+        if (!skipVietnamize) {
+          STEP2_RECIPES.forEach((recipe) => {
+            const unicode = recipe.char.charCodeAt(0);
+            const existingIndex = font.charToGlyphIndex(recipe.char);
+            const existingGlyph = existingIndex > 0 ? font.glyphs.get(existingIndex) : null;
+            const hasOriginalPath =
+              existingGlyph &&
+              existingGlyph.path &&
+              existingGlyph.path.commands &&
+              existingGlyph.path.commands.length > 0;
 
-          const isBaseChar = recipe.components.length === 0;
+            const isBaseChar = recipe.components.length === 0;
 
-          if (!isBaseChar && preserveExistingGlyphs && hasOriginalPath) {
-            return;
-          }
+            if (!isBaseChar && preserveExistingGlyphs && hasOriginalPath) {
+              return;
+            }
 
-          const override = overrides[recipe.char];
-          if (isBaseChar && (!override || !override.advanceWidthTweak)) {
-            return;
-          }
+            const override = overrides[recipe.char];
+            if (isBaseChar && (!override || !override.advanceWidthTweak)) {
+              return;
+            }
 
-          const { path, advanceWidth, hornInfo } = composeGlyphPath(
-            font,
-            recipe,
-            templates,
-            rules,
-            override,
-            preserveExistingGlyphs
-          );
-          if (hornInfo) {
-            charHornInfo[recipe.char] = hornInfo;
-          }
+            const { path, advanceWidth, hornInfo } = composeGlyphPath(
+              font,
+              recipe,
+              templates,
+              rules,
+              override,
+              preserveExistingGlyphs
+            );
+            if (hornInfo) {
+              charHornInfo[recipe.char] = hornInfo;
+            }
 
-          const glyphOptions = {
-            name: recipe.char,
-            unicode: unicode,
-            unicodes: [unicode],
-            advanceWidth: advanceWidth,
-            path: path
-          };
+            const glyphOptions = {
+              name: recipe.char,
+              unicode: unicode,
+              unicodes: [unicode],
+              advanceWidth: advanceWidth,
+              path: path
+            };
 
-          if (existingIndex > 0) {
-            const newGlyph = new opentype.Glyph({
-              ...glyphOptions,
-              index: existingIndex
-            });
-            (font.glyphs as any).glyphs[existingIndex] = newGlyph;
-          } else {
-            const newIndex = font.glyphs.length;
-            const newGlyph = new opentype.Glyph({
-              ...glyphOptions,
-              index: newIndex
-            });
-            (font.glyphs as any).glyphs[newIndex] = newGlyph;
-            font.glyphs.length++;
-          }
-        });
+            if (existingIndex > 0) {
+              const newGlyph = new opentype.Glyph({
+                ...glyphOptions,
+                index: existingIndex
+              });
+              (font.glyphs as any).glyphs[existingIndex] = newGlyph;
+            } else {
+              const newIndex = font.glyphs.length;
+              const newGlyph = new opentype.Glyph({
+                ...glyphOptions,
+                index: newIndex
+              });
+              (font.glyphs as any).glyphs[newIndex] = newGlyph;
+              font.glyphs.length++;
+            }
+          });
+        }
 
         // Inject Custom Glyph Designs from "Edit tàu nhanh"
         const effectiveCustomDesigns = customGlyphDesignsRef.current || customGlyphDesigns || {};
@@ -722,7 +857,7 @@ export default function App() {
         const gsubCheck = prepareGsubForWrite(font);
         let ccmpInstalled = 0;
 
-        if (gsubCheck.ok) {
+        if (!skipVietnamize && gsubCheck.ok) {
           ensureCombiningMarkGlyphs(font, templates, rules);
           ccmpInstalled = addCcmpFeature(font, buildCcmpRules(font));
         } else {
@@ -978,34 +1113,42 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-neutral-100 flex flex-col font-sans">
+    <div className={`h-screen w-screen overflow-hidden ${isDarkMode ? 'dark bg-neutral-950 text-neutral-100' : 'bg-neutral-100 text-neutral-900'} flex flex-col font-sans transition-colors duration-150`}>
       {/* Toast Notifications */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-md w-full px-4 sm:px-0 pointer-events-none">
         {appError && (
-          <div className="flex items-start gap-2.5 p-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-xl shadow-lg relative pointer-events-auto">
-            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div
+            id="toast-app-error"
+            className="flex items-start gap-3 p-3.5 bg-rose-50/85 dark:bg-rose-950/75 border border-rose-200 dark:border-rose-900/60 shadow-lg backdrop-blur-md text-red-900 dark:text-red-100 text-sm rounded-xl relative pointer-events-auto transition-all"
+          >
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
             <div className="pr-6">
-              <p className="font-semibold text-xs">Thông báo</p>
-              <p className="text-xs text-red-700/90 mt-0.5">{appError}</p>
+              <p className="font-semibold text-xs text-red-900 dark:text-red-200">Thông báo lỗi</p>
+              <p className="text-xs text-red-700/90 dark:text-red-300/90 mt-0.5 leading-relaxed">{appError}</p>
             </div>
             <button
               onClick={() => setAppError(null)}
-              className="absolute top-3 right-3 text-red-400 hover:text-red-700 p-1 rounded-lg transition cursor-pointer"
+              className="absolute top-2.5 right-2.5 text-red-400 hover:text-red-700 dark:hover:text-red-200 p-1 rounded-lg transition cursor-pointer"
+              title="Đóng"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
         {appSuccess && (
-          <div className="flex items-start gap-2.5 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-xl shadow-lg relative pointer-events-auto">
-            <Check className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div
+            id="toast-app-success"
+            className="flex items-start gap-3 p-3.5 bg-emerald-50/85 dark:bg-emerald-950/75 border border-emerald-200 dark:border-emerald-900/60 shadow-lg backdrop-blur-md text-emerald-900 dark:text-emerald-100 text-sm rounded-xl relative pointer-events-auto transition-all"
+          >
+            <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <div className="pr-6">
-              <p className="font-semibold text-xs">Thành công</p>
-              <p className="text-xs text-emerald-700/90 mt-0.5">{appSuccess}</p>
+              <p className="font-semibold text-xs text-emerald-900 dark:text-emerald-200">Thành công</p>
+              <p className="text-xs text-emerald-700/90 dark:text-emerald-300/90 mt-0.5 leading-relaxed">{appSuccess}</p>
             </div>
             <button
               onClick={() => setAppSuccess(null)}
-              className="absolute top-3 right-3 text-emerald-400 hover:text-emerald-700 p-1 rounded-lg transition cursor-pointer"
+              className="absolute top-2.5 right-2.5 text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-200 p-1 rounded-lg transition cursor-pointer"
+              title="Đóng"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -1021,6 +1164,12 @@ export default function App() {
           compiledBuffer={compiledBuffer}
           fontFileName={filename || 'font.otf'}
           fontMetadata={metadata}
+          isDarkMode={isDarkMode}
+          onToggleTheme={setIsDarkMode}
+          skipVietnamize={skipVietnamize}
+          onToggleSkipVietnamize={setSkipVietnamize}
+          saveSessionEnabled={saveSessionEnabled}
+          onToggleSaveSession={setSaveSessionEnabled}
           templates={templates}
           rules={rules}
           overrides={overrides}
@@ -1096,6 +1245,24 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Session Restore Prompt Modal on App Mount / F5 */}
+      {showRestoreModal && cachedSession && (
+        <SessionRestoreModal
+          isOpen={showRestoreModal}
+          savedSession={cachedSession}
+          onRestore={() => {
+            setShowRestoreModal(false);
+            handleLoadProjectData(cachedSession);
+            setAppSuccess('Đã khôi phục phiên làm việc trước đó thành công!');
+          }}
+          onDismiss={() => {
+            setShowRestoreModal(false);
+            setCachedSession(null);
+            clearSessionFromIndexedDB();
+          }}
+        />
       )}
     </div>
   );

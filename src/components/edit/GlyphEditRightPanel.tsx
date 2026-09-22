@@ -12,7 +12,9 @@ import {
   Sliders,
   AlignHorizontalJustifyCenter,
   AlignVerticalJustifyEnd,
-  Code2
+  Code2,
+  FlipHorizontal,
+  FlipVertical
 } from 'lucide-react';
 import { CustomGlyphDesign, GlyphEditMode, FontMetadata } from '../../types';
 import { NumericInput } from '../NumericInput';
@@ -87,6 +89,7 @@ export const GlyphEditRightPanel: React.FC<GlyphEditRightPanelProps> = ({
   const currentOffsetY = customDesign?.offsetY ?? 0;
   const currentAdvanceWidth = customDesign?.advanceWidth ?? originalAdvanceWidth;
   const currentFlipY = customDesign?.flipY ?? true;
+  const currentFlipX = customDesign?.flipX ?? false;
   const currentMode: GlyphEditMode = customDesign?.mode || 'replace';
 
   // Calculate bounding box and metrics for the custom SVG
@@ -116,7 +119,8 @@ export const GlyphEditRightPanel: React.FC<GlyphEditRightPanelProps> = ({
         currentScaleY,
         currentOffsetX,
         currentOffsetY,
-        currentFlipY
+        currentFlipY,
+        currentFlipX
       );
       const bbox = getExactBoundingBox(transformed);
       const width = Math.round(bbox.xMax - bbox.xMin);
@@ -134,7 +138,7 @@ export const GlyphEditRightPanel: React.FC<GlyphEditRightPanelProps> = ({
     } catch {
       return { xMin: 0, xMax: 0, yMin: 0, yMax: 0, width: 0, height: 0, lsb: 0, rsb: currentAdvanceWidth };
     }
-  }, [currentSvgPath, currentScaleX, currentScaleY, currentOffsetX, currentOffsetY, currentFlipY, currentAdvanceWidth]);
+  }, [currentSvgPath, currentScaleX, currentScaleY, currentOffsetX, currentOffsetY, currentFlipY, currentFlipX, currentAdvanceWidth]);
 
   // Handle pasting or inputting SVG code
   const handleSvgInput = (rawText: string) => {
@@ -402,8 +406,8 @@ export const GlyphEditRightPanel: React.FC<GlyphEditRightPanelProps> = ({
               onClick={() => setAspectLocked(!aspectLocked)}
               className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 border transition cursor-pointer ${
                 aspectLocked
-                  ? 'bg-neutral-900 text-white border-neutral-900'
-                  : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                  ? 'bg-neutral-900 dark:bg-amber-500 text-white  border-neutral-900  font-extrabold'
+                  : 'bg-white dark:bg-[#282834] text-neutral-600  border-neutral-200  hover:border-neutral-400'
               }`}
               title="Khóa tỷ lệ đồng dạng X/Y"
             >
@@ -509,7 +513,37 @@ export const GlyphEditRightPanel: React.FC<GlyphEditRightPanelProps> = ({
             >
               Vừa x-Height
             </button>
-            
+          </div>
+
+          {/* Lật trục X & Lật trục Y (Flip X & Flip Y toggle buttons) */}
+          <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-neutral-200/60">
+            <button
+              type="button"
+              onClick={() => onUpdateDesign({ flipX: !currentFlipX })}
+              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                currentFlipX
+                  ? 'bg-neutral-900 text-amber-400 border-neutral-900 shadow-xs'
+                  : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
+              }`}
+              title="Lật đối xứng qua trục dọc X (Click để lật, click lại để hoàn nguyên)"
+            >
+              <FlipHorizontal className="w-3.5 h-3.5" />
+              <span>{currentFlipX ? 'Đã lật trục X' : 'Lật trục X'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onUpdateDesign({ flipY: !currentFlipY })}
+              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                !currentFlipY
+                  ? 'bg-neutral-900 text-amber-400 border-neutral-900 shadow-xs'
+                  : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
+              }`}
+              title="Lật đối xứng qua trục ngang Y (Click để lật, click lại để hoàn nguyên)"
+            >
+              <FlipVertical className="w-3.5 h-3.5" />
+              <span>{!currentFlipY ? 'Đã lật trục Y' : 'Lật trục Y'}</span>
+            </button>
           </div>
         </div>
 

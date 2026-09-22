@@ -200,7 +200,7 @@ export const DoubleAccentProperties: React.FC<DoubleAccentPropertiesProps> = ({
       <div className="p-3 bg-white rounded-xl border border-neutral-200 shadow-2xs space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-neutral-900 text-white font-bold font-mono flex items-center justify-center text-sm shadow-2xs">
+            <div className="w-8 h-8 rounded-md bg-neutral-900 text-white font-bold font-mono flex items-center justify-center text-sm shadow-2xs">
               {selectedChar}
             </div>
             <div>
@@ -535,7 +535,7 @@ export const DoubleAccentProperties: React.FC<DoubleAccentPropertiesProps> = ({
       )}
 
       {/* Typographic guidance note */}
-      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 space-y-1">
+      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 space-y-1">
         <div className="flex items-center gap-1.5 text-[11px]">
           <Info className="w-3.5 h-3.5 text-amber-700" />
           <span>Lưu ý: Bộ dấu móc (ơ Ơ, ư Ư) sẽ lấy dấu chuẩn theo cách bỏ dấu đơn:</span>

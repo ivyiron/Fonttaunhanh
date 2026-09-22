@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as opentype from 'opentype.js';
 import {
   DiacriticTemplate,
@@ -19,6 +19,7 @@ import { ResizableDivider } from '../ResizableDivider';
 import { ExportModal } from '../ExportModal';
 import { HelpGuideModal } from '../HelpGuideModal';
 import { KerningWarningModal } from '../kerning/KerningWarningModal';
+import { CreditModal } from '../CreditModal';
 
 interface StudioLayoutProps {
   font: opentype.Font | null;
@@ -26,6 +27,14 @@ interface StudioLayoutProps {
   compiledBuffer: ArrayBuffer | null;
   fontFileName: string;
   fontMetadata: FontMetadata | null;
+
+  // Settings & Theme
+  isDarkMode: boolean;
+  onToggleTheme: (dark: boolean) => void;
+  skipVietnamize: boolean;
+  onToggleSkipVietnamize: (skip: boolean) => void;
+  saveSessionEnabled: boolean;
+  onToggleSaveSession: (enabled: boolean) => void;
 
   // Vietnamize states
   templates: Record<string, DiacriticTemplate>;
@@ -72,6 +81,12 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
   compiledBuffer,
   fontFileName,
   fontMetadata,
+  isDarkMode,
+  onToggleTheme,
+  skipVietnamize,
+  onToggleSkipVietnamize,
+  saveSessionEnabled,
+  onToggleSaveSession,
   templates,
   rules,
   overrides,
@@ -101,9 +116,12 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
   onLoadProject,
   onUploadNewFont
 }) => {
-  const [activeMainTab, setActiveMainTab] = useState<MainTabType>('vietnamize');
+  const [activeMainTab, setActiveMainTab] = useState<MainTabType>(() => {
+    return skipVietnamize ? 'glyph-edit' : 'vietnamize';
+  });
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
+  const [showCreditModal, setShowCreditModal] = useState<boolean>(false);
   const [showKerningWarningModal, setShowKerningWarningModal] = useState<boolean>(false);
   const [dontShowKerningWarning, setDontShowKerningWarning] = useState<boolean>(() => {
     try {
@@ -113,7 +131,17 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
     }
   });
 
+  // If user turns on skipVietnamize while currently on vietnamize tab, auto-switch to glyph-edit
+  useEffect(() => {
+    if (skipVietnamize && activeMainTab === 'vietnamize') {
+      setActiveMainTab('glyph-edit');
+    }
+  }, [skipVietnamize, activeMainTab]);
+
   const handleSelectTab = (tab: MainTabType) => {
+    if (skipVietnamize && tab === 'vietnamize') {
+      return; // Disabled when skipVietnamize is checked
+    }
     if (tab === 'kerning' && activeMainTab !== 'kerning' && !dontShowKerningWarning) {
       setShowKerningWarningModal(true);
     } else {
@@ -143,7 +171,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-neutral-100 font-sans antialiased text-neutral-900 select-none">
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-neutral-100 dark:bg-neutral-950 font-sans antialiased text-neutral-900 dark:text-neutral-100 select-none transition-colors">
       {/* 1. Global Header */}
       <StudioHeader
         activeTab={activeMainTab}
@@ -156,6 +184,13 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
         onCompileFont={onCompileFont}
         compiling={compiling}
         onOpenExport={() => setShowExportModal(true)}
+        isDarkMode={isDarkMode}
+        onToggleTheme={onToggleTheme}
+        skipVietnamize={skipVietnamize}
+        onToggleSkipVietnamize={onToggleSkipVietnamize}
+        saveSessionEnabled={saveSessionEnabled}
+        onToggleSaveSession={onToggleSaveSession}
+        onOpenCredit={() => setShowCreditModal(true)}
       />
 
       {/* 2. Main Studio Canvas Area */}
@@ -306,6 +341,14 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
         }}
         onDismissForever={handleDismissKerningWarningForever}
       />
+
+      {/* 6. Credit & Disclaimer Modal */}
+      {showCreditModal && (
+        <CreditModal
+          isOpen={showCreditModal}
+          onClose={() => setShowCreditModal(false)}
+        />
+      )}
     </div>
   );
 };

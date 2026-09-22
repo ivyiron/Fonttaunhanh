@@ -59,7 +59,7 @@ export const KerningSettingsRightPanel: React.FC<KerningSettingsRightPanelProps>
         </div>
       </div>
 
-       <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 space-y-1">
+       <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 space-y-1">
         <div className="flex items-start gap-1.5 text-[11px]">
           <Info className="w-4.5 h-4.5 text-amber-700" />
           <span>Lưu ý: Kerning sẽ chỉ tác động lên font ở tab này. Nếu muốn export font với kerning đã thiết lập hãy export khi đang mở tap.</span>

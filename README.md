@@ -1,13 +1,20 @@
-# Nền tảng chỉnh sửa font
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-Ba công cụ — **Việt hóa tàu nhanh**, **Sửa font tàu nhanh**, **Kerning tàu nhanh** —
-dùng chung một font session, một lớp xử lý type, một đường xuất file.
+# Run and deploy your AI Studio app
 
-Toàn bộ xử lý chạy trong trình duyệt. Không có backend, không upload font đi đâu.
+This contains everything you need to run your app locally.
 
-## Chạy tại máy
+View your app in AI Studio: https://ai.studio/apps/068f19f1-eb45-43de-891b-24ff5f5ac89c
 
-```bash
-npm install
-npm run dev
-```
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

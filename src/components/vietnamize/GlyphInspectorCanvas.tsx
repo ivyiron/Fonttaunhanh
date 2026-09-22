@@ -28,6 +28,18 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
   const [zoom, setZoom] = useState<number>(1.0);
   const [copyToast, setCopyToast] = useState<string | null>(null);
 
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  });
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   const recipe = VIETNAMESE_RECIPES.find((r) => r.char === selectedChar);
   const override = overrides[selectedChar];
 
@@ -86,11 +98,11 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
     // Background
-    ctx.fillStyle = '#fafafa';
+    ctx.fillStyle = isDarkMode ? '#1b1b24' : '#fafafa';
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 
     // Subtle dots grid
-    ctx.fillStyle = '#e2e8f0';
+    ctx.fillStyle = isDarkMode ? '#2e2e3c' : '#e2e8f0';
     for (let x = 15; x < cssWidth; x += 24) {
       for (let y = 15; y < cssHeight; y += 24) {
         ctx.fillRect(x, y, 1, 1);
@@ -162,7 +174,7 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
           ctx.font = '500 10px monospace';
           const labelText = `${label} (${Math.round(yVal)})`;
           const textWidth = ctx.measureText(labelText).width;
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.fillStyle = isDarkMode ? 'rgba(18, 18, 21, 0.9)' : 'rgba(255, 255, 255, 0.9)';
           
           ctx.strokeStyle = color;
           ctx.lineWidth = 0.5;
@@ -174,7 +186,7 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
       drawHGuide(ascender, 'Ascender', '#059669', true);
       drawHGuide(capHeight, 'Cap Height', '#2563eb', true);
       drawHGuide(xHeight, 'x-Height', '#7c3aed', true);
-      drawHGuide(0, 'Baseline', '#0f172a', false, true);
+      drawHGuide(0, 'Baseline', isDarkMode ? '#f4f4f5' : '#0f172a', false, true);
       drawHGuide(descender, 'Descender', '#e11d48', true);
 
         // Vertical guides (LSB, RSB)
@@ -191,7 +203,7 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
           const labelText = `${label} (${Math.round(xVal)})`;
           ctx.font = '500 10px monospace';
           const textWidth = ctx.measureText(labelText).width;
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.fillStyle = isDarkMode ? 'rgba(18, 18, 21, 0.9)' : 'rgba(255, 255, 255, 0.9)';
           
           ctx.strokeStyle = color;
           ctx.lineWidth = 0.5;
@@ -217,8 +229,8 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
       // Draw Glyph
       ctx.setLineDash([]);
       ctx.beginPath();
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = '#020617';
+      ctx.fillStyle = isDarkMode ? '#f4f4f5' : '#0f172a';
+      ctx.strokeStyle = isDarkMode ? '#e4e4e7' : '#020617';
       ctx.lineWidth = 1.2;
 
       finalPath.commands.forEach((cmd: any) => {
@@ -236,22 +248,22 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
     } finally {
       ctx.restore();
     }
-  }, [font, fontMetadata, templates, rules, overrides, selectedChar, recipe, override, showGuides, zoom, containerSize]);
+  }, [font, fontMetadata, templates, rules, overrides, selectedChar, recipe, override, showGuides, zoom, containerSize, isDarkMode]);
 
   return (
     <div className="flex flex-col h-full space-y-3">
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-neutral-800">
+          <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
             Liveview ký tự:
           </span>
-          <span className="text-base font-bold font-mono bg-neutral-900 text-white px-2.5 py-0.5 rounded-md shadow-2xs">
+          <span className="text-base font-bold font-mono bg-neutral-900 text-white dark:bg-amber-500 dark:text-neutral-950 px-2.5 py-0.5 rounded-md shadow-xs">
             {selectedChar}
           </span>
           {recipe && (
-            <span className="text-xs text-neutral-500 font-mono">
-              (Gốc: <strong>{recipe.baseChar}</strong> + Dấu: {recipe.components.join(', ')})
+            <span className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">
+              (Gốc: <strong className="text-amber-600 dark:text-amber-400">{recipe.baseChar}</strong> + Dấu: <span className="text-indigo-600 dark:text-indigo-400">{recipe.components.join(', ')}</span>)
             </span>
           )}
         </div>
@@ -263,29 +275,29 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
             onClick={() => setShowGuides(!showGuides)}
             className={`px-2 py-0.5 text-[10px] font-bold rounded-md border transition cursor-pointer ${
               showGuides
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                : 'bg-white text-neutral-500 border-neutral-200 hover:text-neutral-900'
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/50'
+                : 'bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             {showGuides ? '✓ Đường gióng' : 'Đường gióng'}
           </button>
 
-          <div className="flex items-center gap-0.5 bg-neutral-100 p-0.5 rounded-lg border border-neutral-200 text-xs">
+          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
             <button
               type="button"
               onClick={() => setZoom((prev) => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10))}
-              className="p-1 hover:bg-white text-neutral-700 rounded-md transition cursor-pointer"
+              className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-md transition cursor-pointer"
               title="Thu nhỏ"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="font-mono font-bold text-[10px] text-neutral-900 px-1 min-w-[32px] text-center">
+            <span className="font-mono font-bold text-[10px] text-neutral-900 dark:text-neutral-100 px-1 min-w-[32px] text-center">
               {Math.round(zoom * 100)}%
             </span>
             <button
               type="button"
               onClick={() => setZoom((prev) => Math.min(3.5, Math.round((prev + 0.1) * 10) / 10))}
-              className="p-1 hover:bg-white text-neutral-700 rounded-md transition cursor-pointer"
+              className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-md transition cursor-pointer"
               title="Phóng to"
             >
               <ZoomIn className="w-3.5 h-3.5" />
@@ -294,7 +306,7 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
               <button
                 type="button"
                 onClick={() => setZoom(1.0)}
-                className="p-1 hover:bg-white text-neutral-500 hover:text-neutral-900 rounded-md transition cursor-pointer"
+                className="p-1 hover:bg-white dark:hover:bg-neutral-700 text-neutral-500 dark:text-amber-400 hover:text-neutral-900 dark:hover:text-amber-300 rounded-md transition cursor-pointer"
                 title="Reset zoom"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -313,10 +325,10 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
                   setTimeout(() => setCopyToast(null), 3000);
                 }
               }}
-              className="px-2 py-1 text-[10px] font-bold bg-white text-neutral-700 border border-neutral-200 hover:border-neutral-400 rounded-md transition cursor-pointer flex items-center gap-1"
+              className="px-2 py-1 text-[10px] font-bold bg-white dark:bg-[#282834] text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-[#3e3e50] hover:border-neutral-400 dark:hover:border-neutral-400 rounded-md transition cursor-pointer flex items-center gap-1 shadow-2xs"
               title="Copy SVG path của ký tự này"
             >
-              <Copy className="w-2.5 h-2.5" />
+              <Copy className="w-2.5 h-2.5 text-neutral-500 dark:text-amber-400" />
               Copy
             </button>
           )}
@@ -324,16 +336,17 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
       </div>
 
       {/* Canvas Area */}
-      <div ref={containerRef} className="relative flex-1 min-h-[300px] border border-neutral-200/90 rounded-2xl bg-neutral-50 overflow-hidden shadow-inner flex items-center justify-center">
+      <div ref={containerRef} className="relative flex-1 min-h-[300px] border border-neutral-200/90 dark:border-[#353545] rounded-2xl bg-neutral-50 dark:bg-[#1b1b24] overflow-hidden shadow-inner flex items-center justify-center">
         <canvas ref={canvasRef} className="w-full h-full block" />
 
         {/* Bottom Tag */}
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[10px] font-mono pointer-events-none">
-          <div className="bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-md border border-neutral-200 text-neutral-600 shadow-2xs">
-            {override?.isCompleted ? '✓ Đã duyệt' : 'Chưa duyệt'} | Bề rộng Advance:{' '}
-            <strong>
-              {(font?.charToGlyph(selectedChar)?.advanceWidth || 500) + (override?.advanceWidthTweak || 0)}
-            </strong>
+          <div className="bg-white/90 dark:bg-[#262632]/95 backdrop-blur-xs px-2.5 py-1 rounded-md border border-neutral-200 dark:border-[#3a3a4c] text-neutral-700 dark:text-neutral-200 shadow-xs flex items-center gap-2">
+            <span className={override?.isCompleted ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-neutral-500 dark:text-neutral-400'}>
+              {override?.isCompleted ? '✓ Đã duyệt' : 'Chưa duyệt'}
+            </span>
+            <span>|</span>
+            <span>Bề rộng Advance: <strong className="text-neutral-900 dark:text-white">{(font?.charToGlyph(selectedChar)?.advanceWidth || 500) + (override?.advanceWidthTweak || 0)}</strong></span>
           </div>
 
           {copyToast && (

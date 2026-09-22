@@ -197,30 +197,29 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/60 backdrop-blur-xs animate-fade-in">
-      <div className="bg-white border border-neutral-200 rounded-2xl max-w-5xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in text-neutral-900">
+      <div className="bg-white dark:bg-[#1b1b24] border border-neutral-200 dark:border-[#353545] rounded-2xl max-w-5xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in text-neutral-900 dark:text-neutral-100">
         {/* Modal Header */}
-        <div className="p-4 px-6 border-b border-neutral-200 flex items-center justify-between bg-neutral-50/80">
+        <div className="p-4 px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-           
             <div>
-              <h3 className="text-base font-extrabold text-neutral-950">
+              <h3 className="text-base font-extrabold text-neutral-950 dark:text-white">
                 Thư Viện Dấu Có Sẵn Trong Font ({availableItems.length})
               </h3>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
                 Font gốc có các nét dấu dưới đây. Bạn có thể copy mã SVG Path hoặc nạp trực tiếp làm mẫu dấu chuẩn.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-200/60 rounded-lg transition cursor-pointer"
+            className="p-1.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200/60 dark:hover:bg-[#2e2e3e] rounded-lg transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Search & Filter Bar */}
-        <div className="p-4 px-6 border-b border-neutral-100 flex flex-col sm:flex-row gap-3 items-center justify-between bg-white">
+        <div className="p-4 px-6 border-b border-neutral-100 dark:border-[#323242] flex flex-col sm:flex-row gap-3 items-center justify-between bg-white dark:bg-[#1b1b24]">
           <div className="flex flex-wrap gap-1">
             {[
               { id: 'all', label: 'Tất cả' },
@@ -240,8 +239,8 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
                   activeTab === tab.id
-                    ? 'bg-neutral-950 text-white shadow-2xs'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    ? 'bg-neutral-950 dark:bg-amber-500 text-white dark:text-neutral-950 font-extrabold shadow-2xs'
+                    : 'bg-neutral-100 dark:bg-[#262634] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-[#303042]'
                 }`}
               >
                 {tab.label}
@@ -250,29 +249,29 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
           </div>
 
           <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Tìm kiếm ký tự..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs pl-8 pr-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg focus:outline-hidden focus:border-neutral-900"
+              className="w-full text-xs pl-8 pr-3 py-1.5 bg-neutral-50 dark:bg-[#22222e] border border-neutral-200 dark:border-[#3a3a4c] rounded-lg focus:outline-hidden focus:border-neutral-900 dark:focus:border-amber-400 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
             />
           </div>
         </div>
 
         {/* Toast */}
         {copyToast && (
-          <div className="bg-neutral-900 text-white text-xs px-4 py-2 font-bold flex items-center justify-center gap-2">
+          <div className="bg-neutral-900 dark:bg-[#2d2d3c] border border-transparent dark:border-[#424256] text-white text-xs px-4 py-2 font-bold flex items-center justify-center gap-2">
             <Check className="w-4 h-4 text-emerald-400" />
             <span>{copyToast}</span>
           </div>
         )}
 
         {/* Content Grid */}
-        <div className="flex-1 overflow-y-auto p-6 bg-neutral-50/50">
+        <div className="flex-1 overflow-y-auto p-6 bg-neutral-50/50 dark:bg-[#16161f]">
           {filteredItems.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 text-neutral-400">
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 text-neutral-400 dark:text-neutral-500">
               <p className="text-sm font-semibold">
                 Không tìm thấy ký tự tiếng Việt nào trong nhóm này trong font gốc.
               </p>
@@ -287,31 +286,31 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
                 return (
                   <div
                     key={item.char}
-                    className="p-3 bg-white rounded-xl border border-neutral-200 shadow-xs hover:border-neutral-400 hover:shadow-md transition flex flex-col justify-between"
+                    className="p-3 bg-white dark:bg-[#20202a] rounded-xl border border-neutral-200 dark:border-[#323242] shadow-xs hover:border-neutral-400 dark:hover:border-amber-500/50 hover:shadow-md transition flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-2xl font-black text-neutral-950 font-mono">{item.char}</span>
-                        <span className="text-[9px] font-mono bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-600">
+                        <span className="text-2xl font-black text-neutral-950 dark:text-white font-mono">{item.char}</span>
+                        <span className="text-[9px] font-mono bg-neutral-100 dark:bg-[#2b2b3a] px-1.5 py-0.5 rounded text-neutral-600 dark:text-neutral-300">
                           U+{item.char.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}
                         </span>
                       </div>
-                      <p className="text-[10px] text-neutral-500 font-medium mb-2 truncate">{item.label}</p>
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium mb-2 truncate">{item.label}</p>
                     </div>
 
-                    <div className="space-y-1 pt-2 border-t border-neutral-100 text-[10px]">
+                    <div className="space-y-1 pt-2 border-t border-neutral-100 dark:border-[#2d2d3a] text-[10px]">
                       {extractedMarkPath ? (
                         <button
                           type="button"
                           onClick={() => triggerCopy(extractedMarkPath, `Mã SVG Path dấu từ '${item.char}'`)}
-                          className="w-full py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-md font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                          className="w-full py-1 px-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 rounded-md font-bold flex items-center justify-center gap-1 transition cursor-pointer"
                           title="Copy mã SVG Path d='...' của dấu bóc tách từ ký tự này"
                         >
-                          <Sparkles className="w-3 h-3 text-amber-600 shrink-0" />
+                          <Sparkles className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
                           <span>Copy SVG Dấu (Path)</span>
                         </button>
                       ) : (
-                        <span className="text-[9px] text-neutral-400 italic block text-center py-0.5">
+                        <span className="text-[9px] text-neutral-400 dark:text-neutral-500 italic block text-center py-0.5">
                           Dấu dính liền thân
                         </span>
                       )}
@@ -319,20 +318,20 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
                       <button
                         type="button"
                         onClick={() => triggerCopy(nativeSvgPath, `Mã SVG Path ký tự '${item.char}'`)}
-                        className="w-full py-1 px-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-200 rounded-md font-medium flex items-center justify-center gap-1 transition cursor-pointer"
+                        className="w-full py-1 px-2 bg-neutral-100 hover:bg-neutral-200 dark:bg-[#2a2a38] dark:hover:bg-[#343446] text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-[#3a3a4c] rounded-md font-medium flex items-center justify-center gap-1 transition cursor-pointer"
                         title="Copy mã SVG Path d='...' của toàn bộ ký tự này"
                       >
-                        <Copy className="w-3 h-3 text-neutral-600 shrink-0" />
+                        <Copy className="w-3 h-3 text-neutral-600 dark:text-neutral-300 shrink-0" />
                         <span>Copy SVG Ký tự (Path)</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => triggerCopy(fullSvg, `Thẻ <svg> đầy đủ của '${item.char}'`)}
-                        className="w-full py-1 px-2 bg-white hover:bg-neutral-50 text-neutral-600 border border-neutral-200 rounded-md font-mono text-[9px] flex items-center justify-center gap-1 transition cursor-pointer"
+                        className="w-full py-1 px-2 bg-white hover:bg-neutral-50 dark:bg-[#22222e] dark:hover:bg-[#2a2a38] text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-[#3a3a4c] rounded-md font-mono text-[9px] flex items-center justify-center gap-1 transition cursor-pointer"
                         title="Copy thẻ <svg>...</svg> đầy đủ"
                       >
-                        <Code className="w-3 h-3 text-neutral-400 shrink-0" />
+                        <Code className="w-3 h-3 text-neutral-400 dark:text-neutral-400 shrink-0" />
                         <span>Copy thẻ &lt;svg&gt;</span>
                       </button>
 
@@ -347,9 +346,9 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
                             onApplySvgToTemplate(mappedType, extractedMarkPath);
                             triggerCopy(extractedMarkPath, `Đã áp dụng dấu từ '${item.char}' vào Studio!`);
                           }}
-                          className="w-full py-1 px-2 bg-neutral-900 hover:bg-black text-white rounded-md font-bold text-[9px] flex items-center justify-center gap-1 transition mt-1 cursor-pointer"
+                          className="w-full py-1 px-2 bg-neutral-900 hover:bg-black dark:bg-amber-500 dark:hover:bg-amber-400 text-white dark:text-neutral-950 font-bold text-[9px] flex items-center justify-center gap-1 transition mt-1 cursor-pointer"
                         >
-                          <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <Check className="w-3 h-3 text-emerald-400 dark:text-neutral-950 shrink-0" />
                           <span>Dùng làm Dấu mẫu</span>
                         </button>
                       )}
@@ -361,11 +360,11 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
           )}
         </div>
 
-        <div className="p-3 px-6 bg-neutral-50 border-t border-neutral-200 flex justify-between items-center text-xs text-neutral-500">
+        <div className="p-3 px-6 border-t border-neutral-200 dark:border-[#323242] flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
           <span>* Các mã dấu câu đã được bóc tách và chuyển đổi chuẩn hóa SVG Path.</span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-neutral-900 text-white font-bold rounded-lg hover:bg-black transition cursor-pointer"
+            className="px-4 py-1.5 bg-neutral-900 hover:bg-black dark:bg-[#2d2d3c] dark:hover:bg-[#38384c] text-white font-bold rounded-lg transition cursor-pointer"
           >
             Đóng
           </button>

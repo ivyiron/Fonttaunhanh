@@ -112,7 +112,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
           type="button"
           onClick={handleDecrement}
           disabled={disabled || (min !== undefined && value <= min)}
-          className={`${btnSizeClasses} flex items-center justify-center font-bold bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 rounded border border-neutral-300 transition disabled:opacity-30 disabled:hover:bg-neutral-100 select-none cursor-pointer shrink-0`}
+          className={`${btnSizeClasses} flex items-center justify-center font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 active:bg-neutral-300 dark:active:bg-neutral-600 text-neutral-700 dark:text-neutral-200 rounded border border-neutral-300 dark:border-neutral-700 transition disabled:opacity-30 disabled:hover:bg-neutral-100 select-none cursor-pointer shrink-0`}
           title={`Giảm ${step}`}
         >
           <Minus className="w-2.5 h-2.5 stroke-[3]" />
@@ -127,7 +127,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
         onBlur={handleBlur}
         disabled={disabled}
         placeholder={placeholder}
-        className={`${inputSizeClasses} text-center font-mono font-bold border border-neutral-300 rounded bg-white text-neutral-900 shadow-2xs focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 outline-none transition disabled:bg-neutral-100 disabled:text-neutral-400 disabled:border-neutral-200 ${inputClassName}`}
+        className={`${inputSizeClasses} text-center font-mono font-bold border border-neutral-300 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-neutral-900 dark:focus:border-amber-500 focus:ring-1 focus:ring-neutral-900 dark:focus:ring-amber-500 outline-none transition disabled:bg-neutral-100 dark:disabled:bg-neutral-800/40 disabled:text-neutral-400 disabled:border-neutral-200 dark:disabled:border-neutral-800 ${inputClassName}`}
       />
 
       {!hideButtons && (
@@ -135,14 +135,14 @@ export const NumericInput: React.FC<NumericInputProps> = ({
           type="button"
           onClick={handleIncrement}
           disabled={disabled || (max !== undefined && value >= max)}
-          className={`${btnSizeClasses} flex items-center justify-center font-bold bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 rounded border border-neutral-300 transition disabled:opacity-30 disabled:hover:bg-neutral-100 select-none cursor-pointer shrink-0`}
+          className={`${btnSizeClasses} flex items-center justify-center font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 active:bg-neutral-300 dark:active:bg-neutral-600 text-neutral-700 dark:text-neutral-200 rounded border border-neutral-300 dark:border-neutral-700 transition disabled:opacity-30 disabled:hover:bg-neutral-100 select-none cursor-pointer shrink-0`}
           title={`Tăng ${step}`}
         >
           <Plus className="w-2.5 h-2.5 stroke-[3]" />
         </button>
       )}
 
-      {unit && <span className="text-[10px] font-mono font-extrabold text-neutral-500 shrink-0 ml-0.5">{unit}</span>}
+      {unit && <span className="text-[10px] font-mono font-extrabold text-neutral-500 dark:text-neutral-300 shrink-0 ml-0.5">{unit}</span>}
     </div>
   );
 };

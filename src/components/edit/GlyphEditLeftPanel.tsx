@@ -273,7 +273,7 @@ export const GlyphEditLeftPanel: React.FC<GlyphEditLeftPanelProps> = ({
                   {/* Character Display */}
                   <span
                     className={`text-xl leading-none font-normal mb-1 truncate max-w-full ${
-                      isSelected ? 'text-white' : 'text-neutral-950'
+                      isSelected ? 'text-white dark:text-neutral-900' : 'text-neutral-950'
                     }`}
                     style={{
                       fontFamily: previewFontFamily ? `"${previewFontFamily}", sans-serif` : 'sans-serif'
