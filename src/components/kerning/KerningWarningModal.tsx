@@ -42,11 +42,9 @@ export const KerningWarningModal: React.FC<KerningWarningModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm font-black text-neutral-900 dark:text-white tracking-tight uppercase">
-                Lưu Ý Tính Năng Kerning Tàu Nhanh
+                Lưu Ý Kerning Tàu Nhanh
               </h2>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                Cảnh báo trước khi tạo hệ thống khoảng cách tự động
-              </p>
+              
             </div>
           </div>
           <button
@@ -61,23 +59,23 @@ export const KerningWarningModal: React.FC<KerningWarningModalProps> = ({
 
         {/* Body */}
         <div className="p-6 space-y-4 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
-          <div className="bg-amber-50 dark:bg-amber-500/15 border border-amber-200/80 dark:border-amber-500/30 p-3.5 rounded-xl text-amber-950 dark:text-amber-200 font-medium space-y-2">
+          
             <div className="font-bold flex items-center gap-1.5 text-amber-900 dark:text-amber-300">
-              <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <span>Những điều cần biết về Auto Kerning:</span>
+              
+              <span>Thông tin cơ bản:</span>
             </div>
             <ul className="space-y-1.5 list-disc pl-4 text-amber-900/90 dark:text-amber-200/90 text-[11px]">
               <li>
-                <strong>Tạo hàng nghìn cặp kerning:</strong> Hệ thống sẽ phân tích quang học và tự động sinh hàng nghìn cặp kerning cho chữ hoa, chữ thường, dấu tiếng Việt và dấu câu.
+                <strong>Tự động hoàn toàn:</strong> Hệ thống sẽ phân tích và tự động sinh hàng nghìn cặp kerning cho chữ hoa, chữ thường, dấu tiếng Việt và dấu câu. Nên sẽ hơi lag.
               </li>
               <li>
-                <strong>Có thể thay đổi kerning gốc:</strong> Quá trình tính toán lại khoảng cách có thể ghi đè hoặc thay đổi các quy tắc Kerning gốc đã được thiết kế sẵn trong font.
+                <strong>Làm thay đổi kerning gốc:</strong> Ghi đè và thay đổi hầu hết các quy tắc Kerning gốc đã được thiết kế sẵn trong font.
               </li>
               <li>
-                <strong>Quy trình khuyến nghị:</strong> Bạn nên hoàn thiện và xuất font ở tab <em>Việt hóa tàu nhanh</em> trước, sau đó nạp lại để tinh chỉnh riêng Kerning nếu font gốc có khoảng cách chưa tối ưu.
+                <strong>Quy trình khuyến nghị:</strong> Hoàn thiện và xuất font ở tab <em>Việt hóa tàu nhanh</em> trước, sau đó nạp lại để tinh chỉnh riêng Kerning nếu font gốc có khoảng cách chưa tối ưu. Tùy chỉnh kerning chỉ có thể được export ra font nếu người dùng đang ở tab này.
               </li>
             </ul>
-          </div>
+          
 
           <p className="text-neutral-500 dark:text-neutral-400">
             Bạn vẫn hoàn toàn có thể kiểm soát, bật/tắt từng nhóm kerning hoặc chỉnh sửa thủ công từng cặp ký tự trong bảng điều khiển.

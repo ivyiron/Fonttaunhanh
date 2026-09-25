@@ -209,12 +209,18 @@ export default function App() {
           customFamilyName: customFamilyName,
           customSubfamilyName: customSubfamilyName,
           preserveExistingGlyphs: preserveExistingGlyphs,
-          templates: templates,
-          rules: rules,
-          overrides: overrides,
-          spacingRules: spacingRules,
-          kerningSettings: kerningSettings,
-          customGlyphDesigns: customGlyphDesigns
+          templates: { ...templates },
+          rules: { ...DEFAULT_AUTO_RULES, ...rules },
+          overrides: { ...overrides },
+          spacingRules: { ...DEFAULT_SPACING_RULES, ...spacingRules },
+          kerningSettings: {
+            ...DEFAULT_KERNING_SETTINGS,
+            ...kerningSettings,
+            customPairs: { ...(kerningSettings?.customPairs || {}) }
+          },
+          customGlyphDesigns: customGlyphDesignsRef.current || customGlyphDesigns,
+          skipVietnamize: skipVietnamize,
+          saveSessionEnabled: saveSessionEnabled
         };
         saveSessionToIndexedDB(sessionPayload);
       } catch (err) {
@@ -236,7 +242,8 @@ export default function App() {
     overrides,
     spacingRules,
     kerningSettings,
-    customGlyphDesigns
+    customGlyphDesigns,
+    skipVietnamize
   ]);
 
   // Auto-dismiss success notification
@@ -954,6 +961,7 @@ export default function App() {
 
     try {
       const base64Buffer = arrayBufferToBase64(rawFontBuffer);
+      const effectiveCustomDesigns = customGlyphDesignsRef.current || customGlyphDesigns || {};
       const projectData: VietnameseProjectFile = {
         ftnVersion: '1.0',
         appName: 'VietHoaTauNhanh',
@@ -964,12 +972,18 @@ export default function App() {
         customFamilyName: customFamilyName,
         customSubfamilyName: customSubfamilyName,
         preserveExistingGlyphs: preserveExistingGlyphs,
-        templates: templates,
-        rules: rules,
-        overrides: overrides,
-        spacingRules: spacingRules,
-        kerningSettings: kerningSettings,
-        customGlyphDesigns: customGlyphDesigns
+        templates: { ...templates },
+        rules: { ...DEFAULT_AUTO_RULES, ...rules },
+        overrides: { ...overrides },
+        spacingRules: { ...DEFAULT_SPACING_RULES, ...spacingRules },
+        kerningSettings: {
+          ...DEFAULT_KERNING_SETTINGS,
+          ...kerningSettings,
+          customPairs: { ...(kerningSettings?.customPairs || {}) }
+        },
+        customGlyphDesigns: { ...effectiveCustomDesigns },
+        skipVietnamize: skipVietnamize,
+        saveSessionEnabled: saveSessionEnabled
       };
 
       const jsonString = JSON.stringify(projectData, null, 2);
@@ -1005,7 +1019,9 @@ export default function App() {
     overrides,
     spacingRules,
     kerningSettings,
-    customGlyphDesigns
+    customGlyphDesigns,
+    skipVietnamize,
+    saveSessionEnabled
   ]);
 
   // Project Load Handler (.ftn)
@@ -1017,6 +1033,7 @@ export default function App() {
 
       const buffer = base64ToArrayBuffer(projectData.rawFontBufferBase64);
       const { font } = parseFontResilient(buffer);
+      ensureKerningPairsPopulated(font);
 
       setOriginalFont(font);
       setRawFontBuffer(buffer);
@@ -1032,6 +1049,12 @@ export default function App() {
       if (projectData.preserveExistingGlyphs !== undefined) {
         setPreserveExistingGlyphs(projectData.preserveExistingGlyphs);
       }
+      if (projectData.skipVietnamize !== undefined) {
+        setSkipVietnamize(projectData.skipVietnamize);
+      }
+      if (projectData.saveSessionEnabled !== undefined) {
+        setSaveSessionEnabled(projectData.saveSessionEnabled);
+      }
 
       if (projectData.templates) {
         const mergedTemplates: Record<string, DiacriticTemplate> = {};
@@ -1040,7 +1063,10 @@ export default function App() {
         });
         Object.keys(projectData.templates).forEach((key) => {
           if (isNaN(Number(key)) && projectData.templates[key]) {
-            mergedTemplates[key] = projectData.templates[key];
+            mergedTemplates[key] = {
+              ...(mergedTemplates[key] || {}),
+              ...projectData.templates[key]
+            };
           }
         });
         setTemplates(mergedTemplates);
@@ -1048,20 +1074,41 @@ export default function App() {
       if (projectData.rules) {
         setRules({ ...DEFAULT_AUTO_RULES, ...projectData.rules });
       }
+
+      const initialOverrides: Record<string, GlyphOverrideState> = {};
+      STEP2_RECIPES.forEach((recipe) => {
+        initialOverrides[recipe.char] = {
+          char: recipe.char,
+          offsetX: 0,
+          offsetY: 0,
+          scaleX: 1.0,
+          scaleY: 1.0,
+          advanceWidthTweak: 0,
+          isCompleted: false
+        };
+      });
       if (projectData.overrides) {
-        setOverrides(projectData.overrides);
+        Object.assign(initialOverrides, projectData.overrides);
       }
+      setOverrides(initialOverrides);
+
       if (projectData.spacingRules) {
-        setSpacingRules(projectData.spacingRules);
+        setSpacingRules({
+          ...DEFAULT_SPACING_RULES,
+          ...projectData.spacingRules
+        });
       }
       if (projectData.kerningSettings) {
-        setKerningSettings(projectData.kerningSettings);
+        setKerningSettings({
+          ...DEFAULT_KERNING_SETTINGS,
+          ...projectData.kerningSettings,
+          customPairs: { ...(projectData.kerningSettings.customPairs || {}) }
+        });
       }
-      if (projectData.customGlyphDesigns) {
-        setCustomGlyphDesigns(projectData.customGlyphDesigns);
-      } else {
-        setCustomGlyphDesigns({});
-      }
+
+      const loadedCustomDesigns = projectData.customGlyphDesigns || {};
+      setCustomGlyphDesigns(loadedCustomDesigns);
+      customGlyphDesignsRef.current = loadedCustomDesigns;
 
       let count = 0;
       const samples: string[] = [];

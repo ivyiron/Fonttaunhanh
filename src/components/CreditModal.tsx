@@ -54,14 +54,18 @@ export const CreditModal: React.FC<CreditModalProps> = ({ isOpen, onClose }) => 
           {/* Credit Section */}
           
             <div className="flex items-center gap-2">
-              
+              <img
+  src="/avatar.jpg"
+  alt="Avatar"
+  className="w-20 h-20 rounded-full object-cover"
+/>
               <a
                 href="https://www.instagram.com/tuannlla/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-mono font-bold text-sm text-white hover:text-amber-300 transition"
               >
-                [Ig]TuanLaVibecode
+                [Ig]TuanLa
               </a>
             </div>
             {/*<p className="text-neutral-300">
@@ -73,8 +77,10 @@ export const CreditModal: React.FC<CreditModalProps> = ({ isOpen, onClose }) => 
           
             
             <p className="text-[11px] leading-normal text-white/80">
-              Bạn không có quyền Việt Hóa font chữ của người khác đâu, cơ mà quan tâm làm gì cơ chứ. (Btw tác giả chỉ
-              phát triển phầm mềm vì lý do nghiên cứu và vô can trong mọi trường hợp người dùng vi phạm bản quyền ạ)
+              Bạn không có quyền Việt Hóa font chữ của người khác đâu, cơ mà quan tâm làm gì cơ chứ.
+            </p>
+            <p className="text-[11px] leading-normal text-white/80">
+              Btw tác giả chỉ phát triển phầm mềm vì lý do nghiên cứu và vô can trong mọi trường hợp người dùng vi phạm bản quyền ạ
             </p>
           
         </div>

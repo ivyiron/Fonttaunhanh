@@ -142,4 +142,6 @@ export interface VietnameseProjectFile {
   spacingRules?: AutoSpacingRules;
   kerningSettings?: AutoKerningSettings;
   customGlyphDesigns?: Record<string, CustomGlyphDesign>;
+  skipVietnamize?: boolean;
+  saveSessionEnabled?: boolean;
 }
