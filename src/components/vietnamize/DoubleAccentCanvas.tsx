@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as opentype from 'opentype.js';
 import { ZoomIn, ZoomOut, RotateCcw, Copy, Sparkles } from 'lucide-react';
+import { StageTitle, recipeNote } from './StageTitle';
 import { DiacriticTemplate, AutoPositionRules, FontMetadata, GlyphOverrideState } from '../../types';
 import {
   composeGlyphPath,
@@ -16,7 +17,6 @@ interface DoubleAccentCanvasProps {
   rules: AutoPositionRules;
   selectedChar: string;
   override?: GlyphOverrideState;
-  onShowGroup?: () => void; // rule-table mode: switch back to the whole-group view
 }
 
 export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
@@ -25,8 +25,7 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
   templates,
   rules,
   selectedChar,
-  override,
-  onShowGroup
+  override
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -276,14 +275,7 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
     <div className="flex flex-col h-full space-y-3">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-            Liveview dấu kép:
-          </span>
-          <span className="text-sm font-mono font-bold bg-neutral-900 text-white dark:bg-amber-500 dark:text-neutral-950 px-2.5 py-0.5 rounded-md shadow-xs">
-            {selectedChar}
-          </span>
-        </div>
+        <StageTitle title={selectedChar} note={activeRecipe ? recipeNote(activeRecipe.baseChar, activeRecipe.components) : undefined} />
 
         {/* View mode & Guides & Zoom */}
         <div className="flex items-center gap-2 text-xs">
@@ -298,19 +290,6 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
           >
             {showGuides ? '✓ Đường gióng' : 'Đường gióng'}
           </button>
-
-          {onShowGroup && (
-            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-[10px] font-bold">
-              <button
-                type="button"
-                onClick={onShowGroup}
-                className="px-2 py-0.5 rounded-md text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition cursor-pointer"
-              >
-                Cả nhóm
-              </button>
-              <span className="px-2 py-0.5 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-2xs">Từng chữ</span>
-            </div>
-          )}
 
           <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
             <button

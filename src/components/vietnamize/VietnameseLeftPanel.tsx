@@ -28,7 +28,9 @@ interface VietnameseLeftPanelProps {
   rules: AutoPositionRules;
   onUpdateRules: (updates: Partial<AutoPositionRules>) => void;
   selectedDoubleChar: string;
-  setSelectedDoubleChar: (char: string) => void;
+  setSelectedDoubleChar: (char: string) => void; // a letter from the list below: single-letter view
+  onSelectStackCell: (char: string) => void;      // a rule-table cell: whole-group view
+  doubleView: 'group' | 'single';
   // Glyph tab props
   selectedGlyphChar: string;
   setSelectedGlyphChar: (char: string) => void;
@@ -67,6 +69,8 @@ export const VietnameseLeftPanel: React.FC<VietnameseLeftPanelProps> = ({
   onUpdateRules,
   selectedDoubleChar,
   setSelectedDoubleChar,
+  onSelectStackCell,
+  doubleView,
   selectedGlyphChar,
   setSelectedGlyphChar,
   overrides,
@@ -296,7 +300,8 @@ export const VietnameseLeftPanel: React.FC<VietnameseLeftPanelProps> = ({
                 overrides={overrides}
                 onUpdateRules={onUpdateRules}
                 selectedChar={selectedDoubleChar}
-                onSelectChar={setSelectedDoubleChar}
+                highlight={doubleView === 'group'}
+                onSelectChar={onSelectStackCell}
               />
             </div>
           )}
@@ -365,7 +370,7 @@ export const VietnameseLeftPanel: React.FC<VietnameseLeftPanelProps> = ({
           <div className="flex-1 overflow-y-auto pr-1">
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
               {currentDoubleList.map((char) => {
-                const isSelected = selectedDoubleChar === char;
+                const isSelected = doubleView === 'single' && selectedDoubleChar === char;
                 const ov = overrides[char];
                 const isCompleted = !!ov?.isCompleted;
                 const hasOverride =

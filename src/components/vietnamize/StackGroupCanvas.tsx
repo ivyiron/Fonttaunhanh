@@ -3,6 +3,7 @@ import * as opentype from 'opentype.js';
 import { AutoPositionRules, DiacriticTemplate, FontMetadata, GlyphOverrideState, StackMod } from '../../types';
 import { composeGlyphPath, getStackCell, getStackMatrix, VIETNAMESE_RECIPES } from '../../utils';
 import { stackStatus } from './StackMatrixPanel';
+import { StageTitle } from './StageTitle';
 
 const MOD_LABEL: Record<StackMod, string> = { circumflex: 'Mũ', breve: 'Trăng' };
 const TONE_LABEL: Record<string, string> = { acute: 'sắc', grave: 'huyền', hook: 'hỏi', tilde: 'ngã' };
@@ -19,9 +20,7 @@ interface StackGroupCanvasProps {
   templates: Record<string, DiacriticTemplate>;
   rules: AutoPositionRules;
   overrides: Record<string, GlyphOverrideState>;
-  selectedChar: string;
-  onSelectChar: (char: string) => void;
-  onShowSingle: () => void;
+  selectedChar: string; // any letter of the cell: the whole group is shown
 }
 
 /** Every vowel that one rule-table cell applies to, lowercase and capitals together. */
@@ -31,13 +30,10 @@ export const StackGroupCanvas: React.FC<StackGroupCanvasProps> = ({
   templates,
   rules,
   overrides,
-  selectedChar,
-  onSelectChar,
-  onShowSingle
+  selectedChar
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hitBoxes = useRef<{ char: string; x: number; y: number; w: number; h: number }[]>([]);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [showGuides, setShowGuides] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(
@@ -104,7 +100,6 @@ export const StackGroupCanvas: React.FC<StackGroupCanvasProps> = ({
     const widest = Math.max(...rows.map((row) => row.reduce((a, r) => a + (r.res?.advanceWidth || 0), 0)));
     const s = Math.min((rowH - 20) / (top - bottom), (W - 80) / (widest * 1.35));
     const gapPx = Math.min(60, W * 0.05);
-    hitBoxes.current = [];
 
     rows.forEach((row, ri) => {
       const base = rowH * ri + rowH - 10 + bottom * s;
@@ -135,18 +130,6 @@ export const StackGroupCanvas: React.FC<StackGroupCanvasProps> = ({
       row.forEach(({ char, res }) => {
         if (!res) return;
         const adv = res.advanceWidth * s;
-        const boxTop = base - top * s, boxH = (top - bottom) * s;
-        hitBoxes.current.push({ char, x: x - 8, y: boxTop, w: adv + 16, h: boxH });
-        if (char === selectedChar) {
-          ctx.fillStyle = isDarkMode ? 'rgba(245, 158, 11, 0.12)' : 'rgba(15, 23, 42, 0.05)';
-          ctx.strokeStyle = isDarkMode ? '#f59e0b' : '#0f172a';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          (ctx as any).roundRect ? (ctx as any).roundRect(x - 8, boxTop, adv + 16, boxH, 10) : ctx.rect(x - 8, boxTop, adv + 16, boxH);
-          ctx.fill();
-          ctx.stroke();
-        }
-
         ctx.beginPath();
         res.path.commands.forEach((cmd: any) => {
           if (cmd.type === 'M') ctx.moveTo(x + cmd.x * s, base - cmd.y * s);
@@ -183,25 +166,15 @@ export const StackGroupCanvas: React.FC<StackGroupCanvasProps> = ({
         x += adv + gapPx;
       });
     });
-  }, [rows, size, showGuides, isDarkMode, selectedChar, font, fontMetadata, matrix.minClear]);
-
-  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const px = e.clientX - r.left, py = e.clientY - r.top;
-    const hit = hitBoxes.current.find((b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h);
-    if (hit) onSelectChar(hit.char);
-  };
+  }, [rows, size, showGuides, isDarkMode, font, fontMetadata, matrix.minClear]);
 
   return (
     <div className="flex flex-col h-full space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Liveview dấu kép:</span>
-          <span className="text-sm font-bold bg-neutral-900 text-white dark:bg-amber-500 dark:text-neutral-950 px-2.5 py-0.5 rounded-md shadow-xs">
-            {cell ? `${MOD_LABEL[cell.mod]} + ${TONE_LABEL[cell.tone]}` : selectedChar}
-          </span>
-          <span className="text-[10px] text-neutral-500 font-medium">bấm vào chữ để chọn</span>
-        </div>
+        <StageTitle
+          title={cell ? `${MOD_LABEL[cell.mod]} + ${TONE_LABEL[cell.tone]}` : selectedChar}
+          note={rows.map((row) => row.map((r) => r.char).join(' ')).join(' · ')}
+        />
         <div className="flex items-center gap-2 text-xs">
           <button
             type="button"
@@ -214,20 +187,10 @@ export const StackGroupCanvas: React.FC<StackGroupCanvasProps> = ({
           >
             {showGuides ? '✓ Đường gióng' : 'Đường gióng'}
           </button>
-          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-[10px] font-bold">
-            <span className="px-2 py-0.5 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-2xs">Cả nhóm</span>
-            <button
-              type="button"
-              onClick={onShowSingle}
-              className="px-2 py-0.5 rounded-md text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition cursor-pointer"
-            >
-              Từng chữ
-            </button>
-          </div>
         </div>
       </div>
       <div ref={containerRef} className="flex-1 min-h-0 rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800">
-        <canvas ref={canvasRef} onClick={handleClick} className="w-full h-full block cursor-pointer" style={{ width: '100%', height: '100%' }} />
+        <canvas ref={canvasRef} className="w-full h-full block" style={{ width: '100%', height: '100%' }} />
       </div>
     </div>
   );

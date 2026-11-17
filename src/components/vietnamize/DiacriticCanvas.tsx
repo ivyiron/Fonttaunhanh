@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as opentype from 'opentype.js';
 import { ZoomIn, ZoomOut, RotateCcw, Copy, Sparkles, Layers } from 'lucide-react';
+import { StageTitle } from './StageTitle';
 import { DiacriticTemplate, AutoPositionRules, FontMetadata } from '../../types';
 import {
   parseSvgPath,
@@ -413,11 +414,7 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
     <div className="flex flex-col h-full space-y-3">
       {/* Top Header Controls Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-500/40">
-            {activeTemplate?.name || activeDiaId}
-          </span>
-        </div>
+        <StageTitle title={(activeTemplate?.name || activeDiaId).replace(/\s*\(.*\)\s*$/, '')} />
 
         {/* Action Toggles: Reference & Guides & Zoom */}
         <div className="flex items-center gap-2 text-xs">
