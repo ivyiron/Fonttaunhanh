@@ -1917,7 +1917,7 @@ export function applyTemplateStroke(
  * Placeholder marks (DEFAULT_DIACRITICS, used when the font has no such mark to extract) are sized
  * to sit with the marks that were extracted from this font: the median size ratio of extracted vs
  * default acute/grave/tilde/circumflex/breve. The dot below is sized from the font's own i dot.
- * Returns the scaled templates; extracted ones are left untouched.
+ * The size is baked into the path (scale fields untouched). Extracted templates are left as they are.
  */
 export function sizePlaceholderTemplates(
   font: any,
@@ -1966,7 +1966,8 @@ export function sizePlaceholderTemplates(
       const w = (b.xMax - b.xMin) * (t.scaleX || 1);
       if (w > 0) kk = (dotWidth * 0.9) / w;
     }
-    out[id] = { ...t, scaleX: (t.scaleX || 1) * kk, scaleY: (t.scaleY || 1) * kk };
+    // bake the size into the path so Scale X/Y keep their usual range (100% = as placed)
+    out[id] = { ...t, svgPath: commandsToSvgPathD(transformCommands(parseSvgPath(t.svgPath), kk, kk, 0, 0, false)) };
   });
   return out;
 }
