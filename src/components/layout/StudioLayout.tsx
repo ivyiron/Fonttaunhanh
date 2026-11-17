@@ -73,6 +73,7 @@ interface StudioLayoutProps {
   onSaveProject: () => void;
   onLoadProject: (project: VietnameseProjectFile) => void;
   onUploadNewFont: () => void;
+  onActivateAutoKerning: () => void;
 }
 
 export const StudioLayout: React.FC<StudioLayoutProps> = ({
@@ -114,7 +115,8 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
   onDownloadFont,
   onSaveProject,
   onLoadProject,
-  onUploadNewFont
+  onUploadNewFont,
+  onActivateAutoKerning
 }) => {
   const [activeMainTab, setActiveMainTab] = useState<MainTabType>(() => {
     return skipVietnamize ? 'glyph-edit' : 'vietnamize';
@@ -130,6 +132,11 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
       return false;
     }
   });
+
+  // Entering Kerning tàu nhanh (after its warning) is what allows auto kerning/spacing to run on export.
+  useEffect(() => {
+    if (activeMainTab === 'kerning') onActivateAutoKerning();
+  }, [activeMainTab, onActivateAutoKerning]);
 
   // If user turns on skipVietnamize while currently on vietnamize tab, auto-switch to glyph-edit
   useEffect(() => {

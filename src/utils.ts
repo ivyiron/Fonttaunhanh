@@ -1695,7 +1695,8 @@ export function injectAdvancedLayoutTables(
 // VERSION 2.0 AUTOMATED COMPOSITION ENGINE UTILITIES
 // ============================================================================
 
-import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState } from './types';
+import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState, StackMatrix, StackRule, StackRuleSet, StackTone, StackMod } from './types';
+import { strokeWeight, scaleKeepWeight, offsetOutline, outlineBounds, translateCommands, outlineClearance, lowestPointX } from './utils/geometry';
 
 // Default professional vector shapes for 9 Vietnamese diacritics
 export const DEFAULT_DIACRITICS: DiacriticTemplate[] = [
@@ -1791,12 +1792,201 @@ export const DEFAULT_DIACRITICS: DiacriticTemplate[] = [
   }
 ];
 
+// ---------------------------------------------------------------------------
+// Double-accent rule table
+// One rule per circumflex/breve x tone pair, applied to every vowel that carries it (ấ ế ố, Ấ Ế Ố).
+// Distances are relative to the marks themselves, so the same table works at any UPM.
+// ---------------------------------------------------------------------------
+const SR = (pos: StackRule['pos'], anchor: StackRule['anchor'], dx: number, gap: number, rise: number, scale: number): StackRule =>
+  ({ pos, anchor, dx, gap, rise, scale });
+
+export const STACK_PRESETS: Record<'stack' | 'right' | 'both', StackRuleSet> = {
+  stack: {
+    circumflex: { acute: SR('top', 'center', 0, 0.55, 60, 100), grave: SR('top', 'center', 0, 0.55, 60, 100), hook: SR('top', 'center', 0, 0.55, 60, 100), tilde: SR('top', 'center', 0, 0.55, 60, 100) },
+    breve: { acute: SR('top', 'foot', 0, 0.45, 60, 100), grave: SR('top', 'foot', 0, 0.45, 60, 100), hook: SR('top', 'center', 0, 0.45, 60, 100), tilde: SR('top', 'center', 0, 0.45, 60, 100) }
+  },
+  right: {
+    circumflex: { acute: SR('side', 'foot', 42, 0.55, 62, 90), grave: SR('side', 'foot', 48, 0.55, 62, 90), hook: SR('side', 'center', 58, 0.55, 48, 90), tilde: SR('top', 'center', 0, 0.55, 60, 100) },
+    breve: { acute: SR('nest', 'foot', 0, 0.45, 55, 90), grave: SR('nest', 'foot', 0, 0.45, 55, 90), hook: SR('top', 'center', 0, 0.45, 60, 95), tilde: SR('top', 'center', 0, 0.45, 60, 100) }
+  },
+  both: {
+    circumflex: { acute: SR('side', 'foot', 42, 0.55, 62, 90), grave: SR('side', 'foot', -42, 0.55, 62, 90), hook: SR('side', 'center', 58, 0.55, 48, 90), tilde: SR('top', 'center', 0, 0.55, 60, 100) },
+    breve: { acute: SR('nest', 'foot', 0, 0.45, 55, 90), grave: SR('nest', 'foot', 0, 0.45, 55, 90), hook: SR('top', 'center', 0, 0.45, 60, 95), tilde: SR('top', 'center', 0, 0.45, 60, 100) }
+  }
+};
+
+const cloneRuleSet = (r: StackRuleSet): StackRuleSet => JSON.parse(JSON.stringify(r));
+
+export function makeStackMatrix(preset: 'stack' | 'right' | 'both' = 'stack', base?: Partial<StackMatrix>): StackMatrix {
+  return {
+    capsSeparate: false,
+    autoClear: true,
+    minClear: 0.6,
+    squeezeLowerMod: 100,
+    squeezeUpperMod: 100,
+    squeezeTone: 100,
+    keepWeight: true,
+    ...base,
+    preset,
+    lower: cloneRuleSet(STACK_PRESETS[preset]),
+    upper: cloneRuleSet(STACK_PRESETS[preset])
+  };
+}
+
+export const DEFAULT_STACK_MATRIX: StackMatrix = makeStackMatrix('stack');
+
+/** The table to use, filling in anything an older project file does not have. */
+export function getStackMatrix(rules: AutoPositionRules): StackMatrix {
+  const m = rules.stackMatrix;
+  if (!m) return DEFAULT_STACK_MATRIX;
+  return { ...DEFAULT_STACK_MATRIX, ...m, lower: m.lower || DEFAULT_STACK_MATRIX.lower, upper: m.upper || m.lower || DEFAULT_STACK_MATRIX.upper };
+}
+
+export const STACK_MODS: StackMod[] = ['circumflex', 'breve'];
+export const STACK_TONES: StackTone[] = ['acute', 'grave', 'hook', 'tilde'];
+
+/** Which rule-table cell a character belongs to, e.g. 'ấ' -> circumflex + acute. null for ơ/ư/ậ... */
+export function getStackCell(char: string): { mod: StackMod; tone: StackTone; isCapital: boolean } | null {
+  const d = char.normalize('NFD');
+  if (d.length !== 3) return null;
+  const mod = d[1] === '\u0302' ? 'circumflex' : d[1] === '\u0306' ? 'breve' : null;
+  const tone = ({ '\u0301': 'acute', '\u0300': 'grave', '\u0309': 'hook', '\u0303': 'tilde' } as Record<string, StackTone>)[d[2]];
+  if (!mod || !tone) return null;
+  return { mod, tone, isCapital: d[0] !== d[0].toLowerCase() };
+}
+
+/** Defaults are written for a 1000-unit em. Fonts on another UPM get the same proportions. */
+export function scaleRulesToUpm(rules: AutoPositionRules, upm: number): AutoPositionRules {
+  const k = (upm || 1000) / 1000;
+  if (Math.abs(k - 1) < 1e-6) return rules;
+  const r = (v: number | undefined) => (v === undefined ? v : Math.round(v * k));
+  return {
+    ...rules,
+    lowercaseAccentGap: r(rules.lowercaseAccentGap)!,
+    uppercaseAccentGap: r(rules.uppercaseAccentGap)!,
+    dotBelowGap: r(rules.dotBelowGap)!,
+    hornOffsetX: r(rules.hornOffsetX)!,
+    hornOffsetY: r(rules.hornOffsetY)!,
+    barOffsetX: r(rules.barOffsetX)!,
+    barOffsetY: r(rules.barOffsetY)!
+  };
+}
+
+/** Squeeze / scale a mark about its bottom centre, with or without giving its weight back. */
+function scaleMarkFromBottom(cmds: any[], sx: number, sy: number, keepWeight: boolean, targetWeight?: number): any[] {
+  if (Math.abs(sx - 1) < 1e-4 && Math.abs(sy - 1) < 1e-4) return cmds;
+  if (keepWeight) return scaleKeepWeight(cmds, sx, sy, targetWeight);
+  const b = outlineBounds(cmds);
+  return transformCommands(cmds, sx, sy, b.cx * (1 - sx), b.yMin * (1 - sy), false);
+}
+
+/**
+ * Stroke weight controls of a mark template, applied to a mark already placed by the position rules.
+ * keepWeight: the size set on top of the designed size (case scale, Scale X/Y squeeze) keeps the
+ * weight the mark has at its designed size. strokeOffset: push the outline out/in by that many units.
+ * The mark keeps its bottom centre, so the position rules still hold.
+ */
+export function applyTemplateStroke(
+  placedCmds: any[],
+  rawSvgCmds: any[],
+  template: DiacriticTemplate,
+  useCapVariant: boolean,
+  templateScaleX: number,
+  templateScaleY: number,
+  ruleScaleX: number,
+  ruleScaleY: number
+): any[] {
+  const keepW = useCapVariant && template.capKeepWeight !== undefined ? template.capKeepWeight : !!template.keepWeight;
+  const strokeOff = (useCapVariant && template.capStrokeOffset !== undefined ? template.capStrokeOffset : template.strokeOffset) || 0;
+  const totalSx = templateScaleX * ruleScaleX;
+  const totalSy = templateScaleY * ruleScaleY;
+  if (!(keepW || Math.abs(strokeOff) >= 0.5) || totalSx <= 0 || totalSy <= 0 || !placedCmds.length) return placedCmds;
+  const anchorBox = outlineBounds(placedCmds);
+  let shaped = placedCmds;
+  if (keepW) {
+    const raw = transformCommands(rawSvgCmds, 1, 1, 0, 0, true);
+    const designWeight = strokeWeight(raw) * Math.max(templateScaleX, templateScaleY);
+    shaped = scaleKeepWeight(raw, totalSx, totalSy, designWeight);
+  }
+  if (Math.abs(strokeOff) >= 0.5) shaped = offsetOutline(shaped, strokeOff);
+  const nb = outlineBounds(shaped);
+  return translateCommands(shaped, anchorBox.cx - nb.cx, anchorBox.yMin - nb.yMin);
+}
+
+/**
+ * Placeholder marks (DEFAULT_DIACRITICS, used when the font has no such mark to extract) are sized
+ * to sit with the marks that were extracted from this font: the median size ratio of extracted vs
+ * default acute/grave/tilde/circumflex/breve. The dot below is sized from the font's own i dot.
+ * Returns the scaled templates; extracted ones are left untouched.
+ */
+export function sizePlaceholderTemplates(
+  font: any,
+  templates: Record<string, DiacriticTemplate>,
+  extractedIds: Set<string>
+): Record<string, DiacriticTemplate> {
+  const size = (d: string) => {
+    const b = getExactBoundingBox(parseSvgPath(d));
+    const w = b.xMax - b.xMin, h = b.yMax - b.yMin;
+    return w > 0 && h > 0 ? Math.sqrt(w * h) : 0;
+  };
+  const ratios: number[] = [];
+  ['acute', 'grave', 'tilde', 'circumflex', 'breve'].forEach((id) => {
+    if (!extractedIds.has(id) || !templates[id]) return;
+    const def = DEFAULT_DIACRITICS.find((d) => d.id === id);
+    if (!def) return;
+    const ext = size(templates[id].svgPath) * (templates[id].scaleX || 1);
+    const ref = size(def.svgPath) * (def.scaleX || 1);
+    if (ext > 0 && ref > 0) ratios.push(ext / ref);
+  });
+  if (!ratios.length) return templates;
+  ratios.sort((a, b) => a - b);
+  const k = Math.max(0.5, Math.min(4, ratios[Math.floor(ratios.length / 2)]));
+
+  // the font's i dot, in the 1000-unit template space
+  let dotWidth = 0;
+  try {
+    const iGlyph = font.charToGlyph('i');
+    const xh = getXHeightFromFont(font);
+    const dots = getGlyphContours(iGlyph.path.commands).filter((c: any[]) => getExactBoundingBox(c).yMin > xh * 0.9);
+    if (dots.length) {
+      const b = getExactBoundingBox(dots.flat());
+      dotWidth = (b.xMax - b.xMin) * (1000 / (font.unitsPerEm || 1000));
+    }
+  } catch {
+    dotWidth = 0;
+  }
+
+  const out: Record<string, DiacriticTemplate> = { ...templates };
+  Object.keys(out).forEach((id) => {
+    if (extractedIds.has(id)) return;
+    const t = out[id];
+    let kk = k;
+    if (id === 'dot_below' && dotWidth > 0) {
+      const b = getExactBoundingBox(parseSvgPath(t.svgPath));
+      const w = (b.xMax - b.xMin) * (t.scaleX || 1);
+      if (w > 0) kk = (dotWidth * 0.9) / w;
+    }
+    out[id] = { ...t, scaleX: (t.scaleX || 1) * kk, scaleY: (t.scaleY || 1) * kk };
+  });
+  return out;
+}
+
+export interface StackInfo {
+  clearance: number;      // smallest gap between the tone and the circumflex/breve, font units (-1: touching)
+  toneStroke: number;     // stroke weight of the tone, font units
+  lift: number;           // how far auto-clear lifted the tone
+  modWeight: [number, number]; // circumflex/breve weight before / after squeeze
+  top: number;            // top of the mark cluster
+  pointA?: { x: number; y: number } | null;
+  pointB?: { x: number; y: number } | null;
+}
+
 export const DEFAULT_AUTO_RULES: AutoPositionRules = {
   useGroupHeightAlignment: true,
   lowercaseAccentGap: 35,
   uppercaseAccentGap: 50,
   lowercaseAccentScale: 1.0,
-  uppercaseAccentScale: 1.25,
+  uppercaseAccentScale: 1.0, // marks extracted from the font already have their real size (no more 0.5 reduction)
   dotBelowGap: 60,
   dotBelowScale: 1.0,
   hornScale: 1.0,
@@ -1805,14 +1995,7 @@ export const DEFAULT_AUTO_RULES: AutoPositionRules = {
   barScale: 1.1,
   barOffsetX: 0,
   barOffsetY: 0,
-  doubleAccentStyle: 'stacked',
-  doubleAccentGap: 20,
-  doubleAccentCustomX: 0,
-  doubleAccentCustomY: 0,
-  doubleAccentCapCustomEnabled: false,
-  doubleAccentCapCustomX: 0,
-  doubleAccentCapCustomY: 20,
-  doubleAccentCapCompressY: 100
+  stackMatrix: DEFAULT_STACK_MATRIX
 };
 
 export interface ComponentRecipe {
@@ -2028,8 +2211,10 @@ export function calculateAutoPosition(
   isCapital: boolean,
   previousPlacedBox?: { xMin: number; yMin: number; xMax: number; yMax: number },
   groupReferenceHeights?: { xHeightMax: number; capHeightMax: number },
-  baseChar?: string
+  baseChar?: string,
+  unitScale: number = 1 // font UPM / 1000: the fixed nudges below were tuned on a 1000-unit em
 ): { scaleX: number; scaleY: number; offsetX: number; offsetY: number } {
+  const u = unitScale;
   let baseXCenter = (baseBBox.x1 + baseBBox.x2) / 2;
 
   // Optical X centering ONLY for lowercase 'y' (ỵ)
@@ -2080,8 +2265,8 @@ export function calculateAutoPosition(
     scaleX = rules.hornScale;
     scaleY = rules.hornScale;
     // Align horn to upper right of vowel
-    offsetX = baseBBox.x2 - (diaBBox.xMin * scaleX) - 10 + rules.hornOffsetX;
-    offsetY = baseYTop - (diaBBox.yMax * scaleY) - 15 + rules.hornOffsetY;
+    offsetX = baseBBox.x2 - (diaBBox.xMin * scaleX) - 10 * u + rules.hornOffsetX;
+    offsetY = baseYTop - (diaBBox.yMax * scaleY) - 15 * u + rules.hornOffsetY;
   } else if (diaId === 'bar') {
     scaleX = rules.barScale;
     scaleY = rules.barScale;
@@ -2089,52 +2274,24 @@ export function calculateAutoPosition(
     if (isCapital) {
       // In uppercase D, the vertical stem is located on the left side (near baseBBox.x1).
       // Calculate the center of the left vertical stem so the bar crosses it symmetrically.
-      const stemWidth = Math.max(45, (baseBBox.x2 - baseBBox.x1) * 0.17);
+      const stemWidth = Math.max(45 * u, (baseBBox.x2 - baseBBox.x1) * 0.17);
       const stemCenterD = baseBBox.x1 + stemWidth * 0.85;
       offsetX = stemCenterD - (diaXCenter * scaleX) + rules.barOffsetX;
       offsetY = baseBBox.y1 + (baseBBox.y2 - baseBBox.y1) * 0.56 - (diaBBox.yMin * scaleY) + rules.barOffsetY;
     } else {
-      offsetX = baseBBox.x2 - (diaBBox.xMin * scaleX) - 80 + rules.barOffsetX;
-      offsetY = baseBBox.y2 - 130 + rules.barOffsetY;
+      offsetX = baseBBox.x2 - (diaBBox.xMin * scaleX) - 80 * u + rules.barOffsetX;
+      offsetY = baseBBox.y2 - 130 * u + rules.barOffsetY;
     }
   } else {
     // Normal top marks: acute, grave, hook, tilde, circumflex, breve
     offsetX = baseXCenter - (diaXCenter * scaleX);
 
     if (previousPlacedBox) {
-      // Placing on top of another diacritic (Stacked vs Side-by-side vs Custom)
-      const isCapCustom = isCapital && !!rules.doubleAccentCapCustomEnabled;
-      const customX = isCapCustom && rules.doubleAccentCapCustomX !== undefined
-        ? rules.doubleAccentCapCustomX
-        : (rules.doubleAccentCustomX ?? 0);
-      const customY = isCapCustom && rules.doubleAccentCapCustomY !== undefined
-        ? 0
-        : (rules.doubleAccentCustomY ?? 0);
-      const baseGap = isCapCustom && rules.doubleAccentCapCustomY !== undefined
-        ? rules.doubleAccentCapCustomY
-        : rules.doubleAccentGap;
-
-      const isCapCompress = isCapital && (rules.doubleAccentCapCompressY ?? 100) < 100;
-      const compressRatio = isCapCompress
-        ? Math.max(0.1, Math.min(1.0, (rules.doubleAccentCapCompressY ?? 100) / 100))
-        : 1.0;
-      const gap = baseGap * compressRatio;
-
-      if (rules.doubleAccentStyle === 'stacked') {
-        const targetTopY = previousPlacedBox.yMax;
-        offsetY = targetTopY - (diaBBox.yMin * scaleY) + gap + customY;
-        offsetX = offsetX + customX;
-      } else if (rules.doubleAccentStyle === 'side') {
-        // Angled/Side placement (very popular in high-end Vietnamese type design)
-        offsetX = (previousPlacedBox.xMax - 10) - (diaBBox.xMin * scaleX) + customX;
-        offsetY = previousPlacedBox.yMax - (diaBBox.yMax * scaleY) + 5 + customY;
-      } else {
-        // 'custom' mode: freely position relative to previous accent's center top
-        const prevCenterX = (previousPlacedBox.xMin + previousPlacedBox.xMax) / 2;
-        const targetTopY = previousPlacedBox.yMax;
-        offsetX = prevCenterX - (diaXCenter * scaleX) + customX;
-        offsetY = targetTopY - (diaBBox.yMin * scaleY) + gap + customY;
-      }
+      // Second mark of a double accent: a provisional spot right above the first one. The rule
+      // table (composeGlyphPath) then places it for real against the measured outline.
+      const prevCenterX = (previousPlacedBox.xMin + previousPlacedBox.xMax) / 2;
+      offsetX = prevCenterX - (diaXCenter * scaleX);
+      offsetY = previousPlacedBox.yMax - (diaBBox.yMin * scaleY) + 20 * u;
     } else {
       const gap = isCapital ? rules.uppercaseAccentGap : rules.lowercaseAccentGap;
       offsetY = baseYTop - (diaBBox.yMin * scaleY) + gap;
@@ -2250,7 +2407,8 @@ export function composeGlyphPath(
 ): { 
   path: opentype.Path; 
   advanceWidth: number; 
-  hornInfo?: { yMin: number; yMax: number; excessRight: number } 
+  hornInfo?: { yMin: number; yMax: number; excessRight: number };
+  stackInfo?: StackInfo;
 } {
   let baseCharToUse = recipe.baseChar;
   let componentsToUse = [...recipe.components];
@@ -2264,24 +2422,21 @@ export function composeGlyphPath(
     recipe.char === 'Ừ' || recipe.char === 'Ứ' || recipe.char === 'Ử' || recipe.char === 'Ữ' || recipe.char === 'Ự' ||
     recipe.char === 'Ờ' || recipe.char === 'Ớ' || recipe.char === 'Ở' || recipe.char === 'Ỡ' || recipe.char === 'Ợ';
 
-  const isTwoTierCapAccent = isCapital && !isHornRecipe && (
-    recipe.components.includes('circumflex') ||
-    recipe.components.includes('breve') ||
-    (recipe.components.length === 2 && !recipe.components.some(c => c.startsWith('horn')))
-  );
-
-  const effectiveCapCompressY = (overrides && overrides.hasCustomDoubleAccent && overrides.doubleAccentCapCompressY !== undefined)
-    ? overrides.doubleAccentCapCompressY
-    : (rules.doubleAccentCapCompressY ?? 100);
-
-  const effectiveCapCustomEnabled = (overrides && overrides.hasCustomDoubleAccent && overrides.doubleAccentCapCustomEnabled !== undefined)
-    ? overrides.doubleAccentCapCustomEnabled
-    : (rules.doubleAccentCapCustomEnabled ?? false);
-
-  const hasCapCompression = isTwoTierCapAccent && effectiveCapCompressY < 100;
-  const compressRatio = hasCapCompression
-    ? Math.max(0.1, Math.min(1.0, effectiveCapCompressY / 100))
-    : 1.0;
+  // Every circumflex/breve + tone pair is placed by the rule table.
+  const stackCell =
+    recipe.components.length === 2 &&
+    (recipe.components[0] === 'circumflex' || recipe.components[0] === 'breve') &&
+    (STACK_TONES as string[]).includes(recipe.components[1])
+      ? { mod: recipe.components[0] as StackMod, tone: recipe.components[1] as StackTone }
+      : null;
+  const useMatrix = !!stackCell;
+  // "Chỉnh riêng cho ký tự này": the user's nudge is final, auto-clear does not move it back
+  const customForChar = !!(overrides && overrides.hasCustomDoubleAccent);
+  const matrix = getStackMatrix(rules);
+  const unitScale = ((font && font.unitsPerEm) || 1000) / 1000;
+  let matrixModCmds: any[] | null = null;
+  let matrixModWeight: [number, number] = [0, 0];
+  let stackInfo: StackInfo | undefined = undefined;
 
   const hasUserOverrides = overrides && (
     (overrides.offsetX !== undefined && overrides.offsetX !== 0) ||
@@ -2298,7 +2453,7 @@ export function composeGlyphPath(
 
   // If preserveExistingGlyphs is enabled and the target character itself is available in the font (and no manual override exists),
   // use the native precomposed glyph directly from the font (unless custom cap compression/override is active).
-  if (preserveExistingGlyphs && font && !hasUserOverrides && !hasCapCompression && !(isTwoTierCapAccent && effectiveCapCustomEnabled)) {
+  if (preserveExistingGlyphs && font && !hasUserOverrides) {
     const existingIdx = font.charToGlyphIndex(recipe.char);
     if (existingIdx > 0) {
       const existingGlyph = font.glyphs.get(existingIdx);
@@ -2315,7 +2470,7 @@ export function composeGlyphPath(
   // is available in the font. Using it as the base glyph preserves the font's native circumflex/breve/horn.
   let precomposedFirstAccentBox: { xMin: number; yMin: number; xMax: number; yMax: number } | undefined = undefined;
 
-  if (preserveExistingGlyphs && font && !hasCapCompression && !(isTwoTierCapAccent && effectiveCapCustomEnabled)) {
+  if (preserveExistingGlyphs && font) {
     const preInfo = PRECOMPOSED_BASE_MAP[recipe.char];
     if (preInfo) {
       const preIdx = font.charToGlyphIndex(preInfo.precomposedBaseChar);
@@ -2410,6 +2565,30 @@ export function composeGlyphPath(
     baseBBox.y2 = tightBox.yMax;
   }
 
+  // Rule-table mode on a precomposed base (â ê ô ă from the font): take its own circumflex/breve out,
+  // squeeze it (weight kept), and put it back. The tone is then placed against this mark.
+  if (useMatrix && precomposedFirstAccentBox && componentsToUse.length === 1) {
+    const plainGlyph = font.charToGlyph(recipe.baseChar);
+    const plainTop = plainGlyph && plainGlyph.path && plainGlyph.path.commands.length
+      ? plainGlyph.getBoundingBox().y2
+      : getXHeightFromFont(font);
+    const rest: any[] = [];
+    const mark: any[] = [];
+    for (const contour of getGlyphContours(baseCmds)) {
+      if (getExactBoundingBox(contour).yMin >= plainTop - 30 * unitScale) mark.push(...contour);
+      else rest.push(...contour);
+    }
+    if (mark.length) {
+      const w0 = strokeWeight(mark);
+      const sq = (isCapital ? matrix.squeezeUpperMod : matrix.squeezeLowerMod) / 100;
+      const squeezed = scaleMarkFromBottom(mark, 1, sq, matrix.keepWeight, w0);
+      baseCmds = [...rest, ...squeezed];
+      matrixModCmds = squeezed;
+      matrixModWeight = [w0, strokeWeight(squeezed)];
+      precomposedFirstAccentBox = getExactBoundingBox(squeezed);
+    }
+  }
+
   // Determine target winding direction from base glyph (TrueType default: Clockwise >0)
   const baseContours = getGlyphContours(baseCmds);
   let targetOuterClockwise = true;
@@ -2454,10 +2633,11 @@ export function composeGlyphPath(
     if (diaRawCmds.length === 0) return;
 
     // Apply template scale first
+    // templates live in a 1000-unit space: bring them to this font's UPM
     const templateTransformed = transformCommands(
       diaRawCmds,
-      scaleXToUse,
-      scaleYToUse,
+      scaleXToUse * unitScale,
+      scaleYToUse * unitScale,
       0,
       0,
       true // flip Y to ensure Illustrator compatibility
@@ -2468,18 +2648,7 @@ export function composeGlyphPath(
     // Auto align the diacritic based on the bounding boxes and group reference heights
     const prevBoxToPass = idx === 0 ? precomposedFirstAccentBox : previousBox;
     const groupHeights = getGroupReferenceHeights(font);
-    const effectiveRules = (overrides && overrides.hasCustomDoubleAccent) ? {
-      ...rules,
-      doubleAccentStyle: overrides.doubleAccentStyle ?? rules.doubleAccentStyle,
-      doubleAccentGap: overrides.doubleAccentGap ?? rules.doubleAccentGap,
-      doubleAccentCustomX: overrides.doubleAccentCustomX ?? rules.doubleAccentCustomX,
-      doubleAccentCustomY: overrides.doubleAccentCustomY ?? rules.doubleAccentCustomY,
-      doubleAccentCapCustomEnabled: overrides.doubleAccentCapCustomEnabled ?? rules.doubleAccentCapCustomEnabled,
-      doubleAccentCapCustomX: overrides.doubleAccentCapCustomX ?? rules.doubleAccentCapCustomX,
-      doubleAccentCapCustomY: overrides.doubleAccentCapCustomY ?? rules.doubleAccentCapCustomY,
-      doubleAccentCapCompressY: overrides.doubleAccentCapCompressY ?? rules.doubleAccentCapCompressY
-    } : rules;
-    const autoPos = calculateAutoPosition(diaId, baseBBox, diaBBox, effectiveRules, isCapital, prevBoxToPass, groupHeights, recipe.baseChar);
+    const autoPos = calculateAutoPosition(diaId, baseBBox, diaBBox, rules, isCapital, prevBoxToPass, groupHeights, recipe.baseChar, unitScale);
 
     // Apply template offsets and individual character override tweaks if present
     let finalScaleX = autoPos.scaleX;
@@ -2488,13 +2657,6 @@ export function composeGlyphPath(
     const useAutoCenterX = autoCenterXToUse;
     let finalOffsetX = autoPos.offsetX + (useAutoCenterX ? 0 : offsetXToUse);
     let finalOffsetY = autoPos.offsetY + offsetYToUse;
-
-    // Apply vertical compression for 2-tier capital accents (excluding Ư, Ơ)
-    if (hasCapCompression && compressRatio < 1.0 && diaId !== 'dot_below') {
-      finalScaleY = autoPos.scaleY * compressRatio;
-      // Preserve the foot position (yMin) of the diacritic:
-      finalOffsetY = autoPos.offsetY + (diaBBox.yMin * autoPos.scaleY * (1 - compressRatio)) + offsetYToUse;
-    }
 
     if (overrides) {
       // Robust safeguard against undefined or NaN scale/offset values
@@ -2536,7 +2698,7 @@ export function composeGlyphPath(
     }
 
     // Final composition transformation for this diacritic
-    const finalCmds = transformCommands(
+    let finalCmds = transformCommands(
       templateTransformed,
       finalScaleX,
       finalScaleY,
@@ -2544,6 +2706,55 @@ export function composeGlyphPath(
       finalOffsetY,
       false // Already flipped Y in templateTransformed, don't flip again
     );
+
+    finalCmds = applyTemplateStroke(finalCmds, diaRawCmds, template, !!useCapVariant, scaleXToUse * unitScale, scaleYToUse * unitScale, finalScaleX, finalScaleY);
+
+    // Rule-table placement for circumflex/breve + tone
+    if (useMatrix && stackCell) {
+      if (diaId === stackCell.mod) {
+        const w0 = strokeWeight(finalCmds);
+        const sq = (isCapital ? matrix.squeezeUpperMod : matrix.squeezeLowerMod) / 100;
+        finalCmds = scaleMarkFromBottom(finalCmds, 1, sq, matrix.keepWeight, w0);
+        matrixModCmds = finalCmds;
+        matrixModWeight = [w0, strokeWeight(finalCmds)];
+      } else if (diaId === stackCell.tone && matrixModCmds) {
+        const rule = (isCapital && matrix.capsSeparate ? matrix.upper : matrix.lower)[stackCell.mod][stackCell.tone];
+        const k = rule.scale / 100;
+        let tone = scaleMarkFromBottom(finalCmds, k, k * (matrix.squeezeTone / 100), matrix.keepWeight, strokeWeight(finalCmds));
+        const toneStroke = Math.max(1, strokeWeight(tone));
+        const mb = outlineBounds(matrixModCmds);
+        const tb = outlineBounds(tone);
+        const targetY = rule.pos === 'top' ? mb.yMax + rule.gap * toneStroke : mb.yMin + (rule.rise / 100) * mb.height;
+        const refX = rule.anchor === 'foot' ? lowestPointX(tone) : tb.cx;
+        const o = overrides;
+        const num = (v: number | undefined) => (v !== undefined && !isNaN(v) ? v : 0);
+        const nudgeX = num(o?.offsetX) + num(o?.comp2OffsetX) + (o?.hasCustomDoubleAccent ? num(o?.doubleAccentCustomX) : 0);
+        const nudgeY = num(o?.offsetY) + num(o?.comp2OffsetY) + (o?.hasCustomDoubleAccent ? num(o?.doubleAccentCustomY) : 0);
+        tone = translateCommands(tone, mb.cx + (rule.dx / 100) * mb.width - refX + nudgeX, targetY - tb.yMin + nudgeY);
+
+        let cl = outlineClearance(tone, matrixModCmds, Math.max(2, 4 * unitScale));
+        let lift = 0;
+        if (matrix.autoClear && !customForChar) {
+          const target = matrix.minClear * toneStroke;
+          for (let i = 0; i < 30 && cl.distance < target - 0.5; i++) {
+            const step = cl.distance < 0 ? mb.height * 0.15 : Math.max(target - cl.distance, 1.5);
+            tone = translateCommands(tone, 0, step);
+            lift += step;
+            cl = outlineClearance(tone, matrixModCmds, Math.max(2, 4 * unitScale));
+          }
+        }
+        finalCmds = tone;
+        stackInfo = {
+          clearance: cl.distance,
+          toneStroke,
+          lift,
+          modWeight: matrixModWeight,
+          top: Math.max(outlineBounds(tone).yMax, mb.yMax),
+          pointA: cl.pointA,
+          pointB: cl.pointB
+        };
+      }
+    }
 
     // Update previous bounding box to handle stacked double accents (only for circumflex & breve)
     const composedDiaBBox = getExactBoundingBox(finalCmds);
@@ -2626,7 +2837,7 @@ export function composeGlyphPath(
     advanceWidth += overrides.advanceWidthTweak;
   }
 
-  return { path: compositePath, advanceWidth, hornInfo };
+  return { path: compositePath, advanceWidth, hornInfo, stackInfo };
 }
 
 /**
@@ -3116,8 +3327,9 @@ export function extractSvgFromGlyph(glyph: any, fontUnitsPerEm: number = 1000): 
 
   const cx = (xMin + xMax) / 2;
 
-  // Uniformly scale to a standard 1000 UPM space, and apply 0.5 reduction to make extracted diacritics smaller by 1/2 of their current size.
-  const targetScale = (1000 / (fontUnitsPerEm || 1000)) * 0.5;
+  // Uniformly scale to the standard 1000-unit template space. Templates are drawn back at the font's
+  // own UPM when composed (templateUnitScale), so an extracted mark returns at its true size.
+  const targetScale = 1000 / (fontUnitsPerEm || 1000);
 
   const parts: string[] = [];
 

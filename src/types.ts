@@ -22,6 +22,40 @@ export interface DiacriticTemplate {
   capOffsetX?: number;
   capOffsetY?: number;
   capAutoCenterX?: boolean;
+
+  // Stroke weight controls (font units). keepWeight: Scale X/Y and the case scale change the size of
+  // the mark but not its stroke weight. strokeOffset: push the outline out (+) or in (-).
+  keepWeight?: boolean;
+  strokeOffset?: number;
+  capKeepWeight?: boolean;
+  capStrokeOffset?: number;
+}
+
+/** One cell of the double-accent rule table: where a tone mark sits on a circumflex or breve. */
+export interface StackRule {
+  pos: 'top' | 'side' | 'nest'; // above the mark / beside it / inside the breve cup
+  anchor: 'center' | 'foot';    // align the tone's box centre, or its lowest point (the foot of á à)
+  dx: number;                   // horizontal shift, % of the circumflex/breve width
+  gap: number;                  // pos 'top': gap above the mark, in tone stroke weights
+  rise: number;                 // pos 'side' | 'nest': foot height, % of the circumflex/breve height
+  scale: number;                // tone size, %
+}
+
+export type StackTone = 'acute' | 'grave' | 'hook' | 'tilde';
+export type StackMod = 'circumflex' | 'breve';
+export type StackRuleSet = Record<StackMod, Record<StackTone, StackRule>>;
+
+export interface StackMatrix {
+  preset: 'stack' | 'right' | 'both' | 'custom';
+  lower: StackRuleSet;
+  upper: StackRuleSet;
+  capsSeparate: boolean;  // false: capitals use the lowercase table
+  autoClear: boolean;     // lift the tone until it clears the mark by minClear
+  minClear: number;       // in tone stroke weights
+  squeezeLowerMod: number; // % height of circumflex/breve in double accents (lowercase)
+  squeezeUpperMod: number; // same for capitals
+  squeezeTone: number;     // % height of the tone in double accents
+  keepWeight: boolean;     // give squeezed marks back their stroke weight
 }
 
 export interface AutoPositionRules {
@@ -38,16 +72,7 @@ export interface AutoPositionRules {
   barScale: number;             // Scale of bar for đ/Đ (default: 1.0)
   barOffsetX: number;           // Horizontal tweak for bar (default: 0)
   barOffsetY: number;           // Vertical tweak for bar (default: 0)
-  doubleAccentStyle: 'stacked' | 'side' | 'custom'; // 'stacked' (vertical stack), 'side' (angled offset), or 'custom' (custom relative X,Y)
-  doubleAccentGap: number;      // Distance between circumflex/breve and accent above (default: 20)
-  doubleAccentCustomX?: number; // Custom relative X offset for double accents (default: 0)
-  doubleAccentCustomY?: number; // Custom relative Y offset for double accents (default: 0)
-
-  // Uppercase double accent customizations
-  doubleAccentCapCustomEnabled?: boolean; // Bật chỉnh riêng thông số cho chữ Hoa
-  doubleAccentCapCustomX?: number;        // Vị trí X riêng cho dấu 2 tầng chữ Hoa (default: 0)
-  doubleAccentCapCustomY?: number;        // Vị trí Y (Gap) riêng cho dấu 2 tầng chữ Hoa (default: 20)
-  doubleAccentCapCompressY?: number;      // Nén dấu chữ HOA (mặc định: 100%, min: 10%)
+  stackMatrix?: StackMatrix;  // double accents: one rule per circumflex/breve x tone pair
 }
 
 export interface GlyphOverrideState {
@@ -64,15 +89,10 @@ export interface GlyphOverrideState {
   comp2OffsetY?: number; // Extra vertical offset for second component of composite accent
 
   // Custom double accent settings for this specific character
+  // "Chỉnh riêng cho ký tự này" in the double-accent tab: nudge the tone of this letter on top of the rule table
   hasCustomDoubleAccent?: boolean;
-  doubleAccentStyle?: 'stacked' | 'side' | 'custom';
-  doubleAccentGap?: number;
   doubleAccentCustomX?: number;
   doubleAccentCustomY?: number;
-  doubleAccentCapCustomEnabled?: boolean;
-  doubleAccentCapCustomX?: number;
-  doubleAccentCapCustomY?: number;
-  doubleAccentCapCompressY?: number;
 }
 
 export interface FontMetadata {
@@ -144,4 +164,9 @@ export interface VietnameseProjectFile {
   customGlyphDesigns?: Record<string, CustomGlyphDesign>;
   skipVietnamize?: boolean;
   saveSessionEnabled?: boolean;
+  // true once the user has opened Kerning tàu nhanh; until then export never generates kerning/spacing
+  autoKerningActive?: boolean;
+  // 1000: mark templates are in a 1000-unit space and drawn at the font's UPM. Missing in files
+  // saved before that change, whose template sizes were tuned in raw font units.
+  templateUnits?: number;
 }

@@ -75,6 +75,8 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
   const currentOffsetX = isCapVariantActive && template.capOffsetX !== undefined ? template.capOffsetX : (template?.offsetX ?? 0);
   const currentOffsetY = isCapVariantActive && template.capOffsetY !== undefined ? template.capOffsetY : (template?.offsetY ?? 0);
   const currentAutoCenterX = isCapVariantActive && template.capAutoCenterX !== undefined ? template.capAutoCenterX : (template?.autoCenterX !== false);
+  const currentKeepWeight = isCapVariantActive && template.capKeepWeight !== undefined ? template.capKeepWeight : !!template?.keepWeight;
+  const currentStrokeOffset = isCapVariantActive && template.capStrokeOffset !== undefined ? template.capStrokeOffset : (template?.strokeOffset ?? 0);
 
   const updateActiveValues = (updates: Partial<DiacriticTemplate>) => {
     if (!template) return;
@@ -86,6 +88,8 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
       if (updates.offsetX !== undefined) capUpdates.capOffsetX = updates.offsetX;
       if (updates.offsetY !== undefined) capUpdates.capOffsetY = updates.offsetY;
       if (updates.autoCenterX !== undefined) capUpdates.capAutoCenterX = updates.autoCenterX;
+      if (updates.keepWeight !== undefined) capUpdates.capKeepWeight = updates.keepWeight;
+      if (updates.strokeOffset !== undefined) capUpdates.capStrokeOffset = updates.strokeOffset;
       onUpdateTemplate(activeDiaId, capUpdates);
     } else {
       onUpdateTemplate(activeDiaId, updates);
@@ -101,7 +105,9 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
         scaleY: 1.0,
         offsetX: 0,
         offsetY: 0,
-        autoCenterX: true
+        autoCenterX: true,
+        keepWeight: false,
+        strokeOffset: 0
       });
       setStatusMsg(`Đã đặt lại về thiết kế chuẩn (${isCapVariantActive ? 'Chữ HOA' : 'Chữ thường'})!`);
       setTimeout(() => setStatusMsg(null), 3000);
@@ -488,6 +494,42 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
               className="w-full h-1.5 accent-neutral-900 dark:accent-amber-500 cursor-pointer rounded-lg bg-neutral-200 dark:bg-neutral-700"
             />
           </div>
+        </div>
+
+        {/* Stroke weight: offset the outline, and keep the weight when Scale X/Y change */}
+        <div className="bg-white dark:bg-[#282834] p-2 rounded-lg border border-neutral-200/70 dark:border-[#3e3e50] space-y-1">
+          <div className="flex justify-between items-center text-[10px] text-neutral-700 dark:text-neutral-200 font-bold">
+            <span>Độ dày nét</span>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-neutral-600 dark:text-neutral-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={currentKeepWeight}
+                  onChange={(e) => updateActiveValues({ keepWeight: e.target.checked })}
+                  className="w-3.5 h-3.5 accent-neutral-900 dark:accent-amber-500 rounded cursor-pointer"
+                />
+                <span>Giữ độ đậm khi co</span>
+              </label>
+              <NumericInput
+                size="sm"
+                value={currentStrokeOffset}
+                onChange={(val) => updateActiveValues({ strokeOffset: val })}
+                step={1}
+                min={-100}
+                max={100}
+                unit="UPM"
+              />
+            </div>
+          </div>
+          <input
+            type="range"
+            min="-40"
+            max="40"
+            step="1"
+            value={currentStrokeOffset}
+            onChange={(e) => updateActiveValues({ strokeOffset: parseInt(e.target.value) })}
+            className="w-full h-1.5 accent-neutral-900 dark:accent-amber-500 cursor-pointer rounded-lg bg-neutral-200 dark:bg-neutral-700"
+          />
         </div>
       </div>
 

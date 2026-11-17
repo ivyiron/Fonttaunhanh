@@ -10,6 +10,8 @@ import { DoubleAccentProperties } from './DoubleAccentProperties';
 import { GlyphProperties } from './GlyphProperties';
 import { FontDiacriticsLibraryModal } from './FontDiacriticsLibraryModal';
 import { ResizableDivider } from '../ResizableDivider';
+import { StackGroupCanvas } from './StackGroupCanvas';
+import { getStackCell } from '../../utils';
 
 interface VietnameseStudioProps {
   font: opentype.Font | null;
@@ -52,6 +54,9 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
 
   // Sub-tab 2 active selection (default: 'ấ')
   const [selectedDoubleChar, setSelectedDoubleChar] = useState<string>('ấ');
+  // rule-table mode: whole group (â ê ô + Â Ê Ô) or one letter in the middle stage
+  const [doubleView, setDoubleView] = useState<'group' | 'single'>('group');
+  const ruleTableCell = getStackCell(selectedDoubleChar);
 
   // Sub-tab 3 active selection (default: 'á')
   const [selectedGlyphChar, setSelectedGlyphChar] = useState<string>('á');
@@ -146,7 +151,20 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
           />
         )}
 
-        {activeSubTab === 'double_accents' && (
+        {activeSubTab === 'double_accents' && ruleTableCell && doubleView === 'group' && (
+          <StackGroupCanvas
+            font={font}
+            fontMetadata={fontMetadata}
+            templates={templates}
+            rules={rules}
+            overrides={overrides}
+            selectedChar={selectedDoubleChar}
+            onSelectChar={setSelectedDoubleChar}
+            onShowSingle={() => setDoubleView('single')}
+          />
+        )}
+
+        {activeSubTab === 'double_accents' && !(ruleTableCell && doubleView === 'group') && (
           <DoubleAccentCanvas
             font={font}
             fontMetadata={fontMetadata}
@@ -154,6 +172,7 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
             rules={rules}
             selectedChar={selectedDoubleChar}
             override={overrides[selectedDoubleChar]}
+            onShowGroup={ruleTableCell ? () => setDoubleView('group') : undefined}
           />
         )}
 
@@ -200,6 +219,9 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
 
         {activeSubTab === 'double_accents' && (
           <DoubleAccentProperties
+            font={font}
+            templates={templates}
+            onSelectChar={setSelectedDoubleChar}
             rules={rules}
             onUpdateRules={onUpdateRules}
             selectedChar={selectedDoubleChar}

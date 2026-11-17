@@ -235,10 +235,11 @@ export function ensureCombiningMarkGlyphs(
       const rawCmds = parseSvgPath(template.svgPath);
       if (rawCmds.length === 0) continue;
 
-      const scaled = transformCommands(rawCmds, template.scaleX, template.scaleY, 0, 0, true);
+      const unitScale = (font.unitsPerEm || 1000) / 1000; // templates are drawn in a 1000-unit space
+      const scaled = transformCommands(rawCmds, template.scaleX * unitScale, template.scaleY * unitScale, 0, 0, true);
       const diaBBox = getExactBoundingBox(scaled);
 
-      const pos = calculateAutoPosition(templateId, baseBBox, diaBBox, rules, false, undefined, groupHeights, 'a');
+      const pos = calculateAutoPosition(templateId, baseBBox, diaBBox, rules, false, undefined, groupHeights, 'a', unitScale);
       const placed = transformCommands(scaled, pos.scaleX, pos.scaleY, pos.offsetX, pos.offsetY, false);
 
       // Centre the mark horizontally on the origin so it overlays the preceding glyph
@@ -569,4 +570,40 @@ export function addCcmpFeature(font: any, rules: CcmpRule[]): number {
   });
 
   return rules.length;
+}
+
+/**
+ * Windows clips every glyph above usWinAscent / below usWinDescent. New stacked capitals
+ * (Ẫ Ẳ Ấ...) are often taller than the original font, and opentype.js copies the original OS/2
+ * values verbatim, so the new marks would be cut off. Only the win metrics are raised, and only
+ * as far as the glyphs need: hhea / typo values (the line spacing Mac, Adobe and the web use)
+ * are left as the designer set them. Values are never lowered.
+ */
+export function fitWinMetricsToGlyphs(font: any): { winAscent: number; winDescent: number; raised: boolean } {
+  const os2 = font?.tables?.os2;
+  if (!os2) return { winAscent: 0, winDescent: 0, raised: false };
+
+  let yMax = -Infinity;
+  let yMin = Infinity;
+  for (let i = 0; i < font.glyphs.length; i++) {
+    const g = font.glyphs.get(i);
+    if (!g || !g.path || !Array.isArray(g.path.commands) || g.path.commands.length === 0) continue;
+    try {
+      const box = g.getBoundingBox();
+      if (Number.isFinite(box.y2)) yMax = Math.max(yMax, box.y2);
+      if (Number.isFinite(box.y1)) yMin = Math.min(yMin, box.y1);
+    } catch {
+      // a broken outline must not stop the export
+    }
+  }
+
+  const prevAsc = os2.usWinAscent || 0;
+  const prevDesc = os2.usWinDescent || 0;
+  if (Number.isFinite(yMax)) os2.usWinAscent = Math.min(0xffff, Math.max(prevAsc, Math.ceil(yMax)));
+  if (Number.isFinite(yMin)) os2.usWinDescent = Math.min(0xffff, Math.max(prevDesc, Math.ceil(-yMin)));
+  return {
+    winAscent: os2.usWinAscent,
+    winDescent: os2.usWinDescent,
+    raised: os2.usWinAscent !== prevAsc || os2.usWinDescent !== prevDesc
+  };
 }

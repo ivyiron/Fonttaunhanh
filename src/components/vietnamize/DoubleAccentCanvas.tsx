@@ -16,6 +16,7 @@ interface DoubleAccentCanvasProps {
   rules: AutoPositionRules;
   selectedChar: string;
   override?: GlyphOverrideState;
+  onShowGroup?: () => void; // rule-table mode: switch back to the whole-group view
 }
 
 export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
@@ -24,7 +25,8 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
   templates,
   rules,
   selectedChar,
-  override
+  override,
+  onShowGroup
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,7 +128,7 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
     }
 
     try {
-      const { path, advanceWidth } = composeGlyphPath(font, recipe, templates, rules, override, false);
+      const { path, advanceWidth, stackInfo } = composeGlyphPath(font, recipe, templates, rules, override, false);
 
       let xMin = Infinity;
       let xMax = -Infinity;
@@ -223,6 +225,33 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
         ctx.stroke();
       }
 
+      // Rule table: the measured gap between the tone and the circumflex/breve
+      if (showGuides && stackInfo && stackInfo.pointA && stackInfo.pointB) {
+        const a = stackInfo.pointA, b = stackInfo.pointB;
+        const minGap = (rules.stackMatrix?.minClear ?? 0.6) * stackInfo.toneStroke;
+        const color = stackInfo.clearance < 0.25 * stackInfo.toneStroke ? '#dc2626' : stackInfo.clearance < minGap - 0.5 ? '#d97706' : '#10b981';
+        const ax = fontStartX + a.x * scaleFactor, ay = baselineY - a.y * scaleFactor;
+        const bx = fontStartX + b.x * scaleFactor, by = baselineY - b.y * scaleFactor;
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        [[ax, ay], [bx, by]].forEach(([x, y]) => {
+          ctx.beginPath();
+          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.font = 'bold 10px monospace';
+        const label = stackInfo.clearance < 0 ? 'chạm' : `${Math.round(stackInfo.clearance)} · ${(stackInfo.clearance / stackInfo.toneStroke).toFixed(2)}×`;
+        ctx.fillText(label, Math.max(ax, bx) + 8, (ay + by) / 2 + 3);
+        ctx.restore();
+      }
+
       // Overlay legend
       if (viewMode === 'overlay' && isNativeAvailable) {
         const legendText = '🟧 Design gốc font   |   ⬛ Dấu ghép mẫu';
@@ -269,6 +298,19 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
           >
             {showGuides ? '✓ Đường gióng' : 'Đường gióng'}
           </button>
+
+          {onShowGroup && (
+            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={onShowGroup}
+                className="px-2 py-0.5 rounded-md text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition cursor-pointer"
+              >
+                Cả nhóm
+              </button>
+              <span className="px-2 py-0.5 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-2xs">Từng chữ</span>
+            </div>
+          )}
 
           <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
             <button

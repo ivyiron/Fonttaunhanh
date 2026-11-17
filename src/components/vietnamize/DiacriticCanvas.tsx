@@ -8,6 +8,7 @@ import {
   getExactBoundingBox,
   removeDotFromICommands,
   calculateAutoPosition,
+  applyTemplateStroke,
   getGroupReferenceHeights,
   VIETNAMESE_RECIPES,
   DEFAULT_DIACRITICS,
@@ -339,7 +340,8 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
 
         const rawCmds = parseSvgPath(svgPathToUse);
         if (rawCmds.length > 0) {
-          const templateTransformed = transformCommands(rawCmds, scaleXToUse, scaleYToUse, 0, 0, true);
+          const unitScale = (font.unitsPerEm || 1000) / 1000; // templates are drawn in a 1000-unit space
+          const templateTransformed = transformCommands(rawCmds, scaleXToUse * unitScale, scaleYToUse * unitScale, 0, 0, true);
           const diaBBox = getExactBoundingBox(templateTransformed);
           const groupHeights = getGroupReferenceHeights(font);
           const autoPos = calculateAutoPosition(
@@ -350,19 +352,22 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
             isCapital,
             undefined,
             groupHeights,
-            refChar
+            refChar,
+            unitScale
           );
 
           const finalOffsetX = autoPos.offsetX + (autoCenterXToUse ? 0 : offsetXToUse);
           const finalOffsetY = autoPos.offsetY + offsetYToUse;
 
-          const finalCmds = transformCommands(
-            templateTransformed,
+          const finalCmds = applyTemplateStroke(
+            transformCommands(templateTransformed, autoPos.scaleX, autoPos.scaleY, finalOffsetX, finalOffsetY, false),
+            rawCmds,
+            activeTemplate,
+            !!useCapVariant,
+            scaleXToUse * unitScale,
+            scaleYToUse * unitScale,
             autoPos.scaleX,
-            autoPos.scaleY,
-            finalOffsetX,
-            finalOffsetY,
-            false
+            autoPos.scaleY
           );
 
           ctx.beginPath();
