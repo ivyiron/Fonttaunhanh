@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState } from '../../types';
 import { DEFAULT_DIACRITICS, VIETNAMESE_CHARS, VIETNAMESE_RECIPES } from '../../utils';
+import { StackMatrixPanel } from './StackMatrixPanel';
 
 export type VietnamizeSubTab = 'diacritics' | 'double_accents' | 'glyphs';
 
@@ -284,7 +285,22 @@ export const VietnameseLeftPanel: React.FC<VietnameseLeftPanelProps> = ({
       {/* SUB-TAB 2: DẤU KÉP */}
       {activeSubTab === 'double_accents' && (
         <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
-          
+
+          {/* Rule table: one rule per circumflex/breve x tone pair, above the per-letter list */}
+          {(
+            <div className="pb-3 border-b border-neutral-100">
+              <StackMatrixPanel
+                font={font}
+                templates={templates}
+                rules={rules}
+                overrides={overrides}
+                onUpdateRules={onUpdateRules}
+                selectedChar={selectedDoubleChar}
+                onSelectChar={setSelectedDoubleChar}
+              />
+            </div>
+          )}
+
           {/* Group & Case Filter */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">

@@ -26,6 +26,8 @@ import {
   buildKernTable,
   buildGPOSTable,
   findCandidateGlyph,
+  scaleRulesToUpm,
+  sizePlaceholderTemplates,
   extractSvgFromGlyph,
   arrayBufferToBase64,
   base64ToArrayBuffer,
@@ -45,7 +47,8 @@ import {
   addCcmpFeature,
   updateOS2ForVietnamese,
   prepareGsubForWrite,
-  verifyGsubRoundTrip
+  verifyGsubRoundTrip,
+  fitWinMetricsToGlyphs
 } from './utils/fontFeatures';
 import {
   saveSessionToIndexedDB,
@@ -88,6 +91,9 @@ export default function App() {
   const [overrides, setOverrides] = useState<Record<string, GlyphOverrideState>>({});
   const [spacingRules, setSpacingRules] = useState<AutoSpacingRules>(DEFAULT_SPACING_RULES);
   const [kerningSettings, setKerningSettings] = useState<AutoKerningSettings>(DEFAULT_KERNING_SETTINGS);
+  // Auto kerning / auto spacing belong to the Kerning tool. They run on export only after the user has
+  // entered that tool (and passed its warning). Inheriting kerning for new Vietnamese glyphs always runs.
+  const [autoKerningActive, setAutoKerningActive] = useState<boolean>(false);
 
   // Existing Vietnamese glyph preservation
   const [preserveExistingGlyphs, setPreserveExistingGlyphs] = useState<boolean>(true);
@@ -220,7 +226,9 @@ export default function App() {
           },
           customGlyphDesigns: customGlyphDesignsRef.current || customGlyphDesigns,
           skipVietnamize: skipVietnamize,
-          saveSessionEnabled: saveSessionEnabled
+          saveSessionEnabled: saveSessionEnabled,
+          autoKerningActive: autoKerningActive,
+          templateUnits: 1000
         };
         saveSessionToIndexedDB(sessionPayload);
       } catch (err) {
@@ -243,7 +251,8 @@ export default function App() {
     spacingRules,
     kerningSettings,
     customGlyphDesigns,
-    skipVietnamize
+    skipVietnamize,
+    autoKerningActive
   ]);
 
   // Auto-dismiss success notification
@@ -270,6 +279,7 @@ export default function App() {
   const handleFontLoaded = useCallback(
     (loadedFont: opentype.Font, nameOfFile: string, meta: FontMetadata, rawBuffer: ArrayBuffer) => {
       ensureKerningPairsPopulated(loadedFont);
+      setAutoKerningActive(false);
       setOriginalFont(loadedFont);
       setRawFontBuffer(rawBuffer);
       setFilename(nameOfFile);
@@ -304,6 +314,7 @@ export default function App() {
       const initialTemplates: Record<string, DiacriticTemplate> = {};
       let extractedCount = 0;
       const extractedList: string[] = [];
+      const extractedIds = new Set<string>();
 
       DEFAULT_DIACRITICS.forEach((dia) => {
         const candidateGlyph = findCandidateGlyph(loadedFont, dia.id);
@@ -320,13 +331,15 @@ export default function App() {
             };
             extractedCount++;
             extractedList.push(dia.name);
+            extractedIds.add(dia.id);
             return;
           }
         }
         // Fallback to default
         initialTemplates[dia.id] = { ...dia };
       });
-      setTemplates(initialTemplates);
+      // placeholders for marks the font does not have: same size as the marks taken from the font
+      setTemplates(sizePlaceholderTemplates(loadedFont, initialTemplates, extractedIds));
 
       if (existingInfo.count === VIETNAMESE_RECIPES.length) {
         setAppSuccess(
@@ -360,7 +373,8 @@ export default function App() {
         };
       });
       setOverrides(initialOverrides);
-      setRules(DEFAULT_AUTO_RULES);
+      // defaults are tuned on a 1000-unit em: carry the same proportions to fonts on other UPMs
+      setRules(scaleRulesToUpm(DEFAULT_AUTO_RULES, loadedFont.unitsPerEm || 1000));
     },
     []
   );
@@ -776,23 +790,25 @@ export default function App() {
           }
         });
 
-        // Apply Spacing
-        const autoSpacingMap = calculateAutoSpacingAdjustments(font, spacingRules);
-        for (let i = 0; i < font.glyphs.length; i++) {
-          const g = font.glyphs.get(i);
-          if (g && g.name) {
-            const charStr = g.unicode ? String.fromCharCode(g.unicode) : g.name;
-            if (autoSpacingMap[charStr]) {
-              applySpacingDelta(g, autoSpacingMap[charStr]);
+        // Auto spacing + auto kerning (Kerning tàu nhanh). Only after the user has opened that tool:
+        // both rewrite the original font's spacing and pairs, so they must never run on their own.
+        if (autoKerningActive) {
+          const autoSpacingMap = calculateAutoSpacingAdjustments(font, spacingRules);
+          for (let i = 0; i < font.glyphs.length; i++) {
+            const g = font.glyphs.get(i);
+            if (g && g.name) {
+              const charStr = g.unicode ? String.fromCharCode(g.unicode) : g.name;
+              if (autoSpacingMap[charStr]) {
+                applySpacingDelta(g, autoSpacingMap[charStr]);
+              }
             }
           }
-        }
 
-        // Apply Kerning
-        const autoKerningPairs = generateFullFontKerningPairs(font, kerningSettings);
-        autoKerningPairs.forEach((pair) => {
-          pairs[`${pair.indexLeft},${pair.indexRight}`] = pair.value;
-        });
+          const autoKerningPairs = generateFullFontKerningPairs(font, kerningSettings);
+          autoKerningPairs.forEach((pair) => {
+            pairs[`${pair.indexLeft},${pair.indexRight}`] = pair.value;
+          });
+        }
 
         for (const [key, val] of Object.entries(pairs)) {
           const parts = key.split(',');
@@ -879,6 +895,8 @@ export default function App() {
           }
         }
 
+        fitWinMetricsToGlyphs(font);
+
         let buffer: ArrayBuffer;
         try {
           buffer = font.toArrayBuffer();
@@ -939,7 +957,8 @@ export default function App() {
       customSubfamilyName,
       spacingRules,
       kerningSettings,
-      customGlyphDesigns
+      customGlyphDesigns,
+      autoKerningActive
     ]
   );
 
@@ -983,7 +1002,9 @@ export default function App() {
         },
         customGlyphDesigns: { ...effectiveCustomDesigns },
         skipVietnamize: skipVietnamize,
-        saveSessionEnabled: saveSessionEnabled
+        saveSessionEnabled: saveSessionEnabled,
+        autoKerningActive: autoKerningActive,
+        templateUnits: 1000
       };
 
       const jsonString = JSON.stringify(projectData, null, 2);
@@ -1061,12 +1082,25 @@ export default function App() {
         DEFAULT_DIACRITICS.forEach((dia) => {
           mergedTemplates[dia.id] = { ...dia };
         });
+        // Files saved before templates moved to a 1000-unit space drew them in raw font units.
+        // Keep those marks the size they were saved at on fonts whose UPM is not 1000.
+        const legacyFactor = projectData.templateUnits ? 1 : 1000 / (font.unitsPerEm || 1000);
+        const keepSize = (t: DiacriticTemplate): DiacriticTemplate =>
+          Math.abs(legacyFactor - 1) < 1e-6
+            ? t
+            : {
+                ...t,
+                scaleX: (t.scaleX ?? 1) * legacyFactor,
+                scaleY: (t.scaleY ?? 1) * legacyFactor,
+                ...(t.capScaleX !== undefined ? { capScaleX: t.capScaleX * legacyFactor } : {}),
+                ...(t.capScaleY !== undefined ? { capScaleY: t.capScaleY * legacyFactor } : {})
+              };
         Object.keys(projectData.templates).forEach((key) => {
           if (isNaN(Number(key)) && projectData.templates[key]) {
-            mergedTemplates[key] = {
+            mergedTemplates[key] = keepSize({
               ...(mergedTemplates[key] || {}),
               ...projectData.templates[key]
-            };
+            });
           }
         });
         setTemplates(mergedTemplates);
@@ -1098,6 +1132,7 @@ export default function App() {
           ...projectData.spacingRules
         });
       }
+      setAutoKerningActive(!!projectData.autoKerningActive);
       if (projectData.kerningSettings) {
         setKerningSettings({
           ...DEFAULT_KERNING_SETTINGS,
@@ -1247,6 +1282,7 @@ export default function App() {
           onSaveProject={handleSaveProject}
           onLoadProject={handleLoadProjectData}
           onUploadNewFont={handleReset}
+          onActivateAutoKerning={() => setAutoKerningActive(true)}
         />
       ) : (
         <div className="relative h-full w-full overflow-hidden select-none">
