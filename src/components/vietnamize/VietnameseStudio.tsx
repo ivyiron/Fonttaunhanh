@@ -54,8 +54,16 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
 
   // Sub-tab 2 active selection (default: 'ấ')
   const [selectedDoubleChar, setSelectedDoubleChar] = useState<string>('ấ');
-  // rule-table mode: whole group (â ê ô + Â Ê Ô) or one letter in the middle stage
+  // a rule-table cell shows its whole group (â ê ô + Â Ê Ô); a letter from the list shows that letter
   const [doubleView, setDoubleView] = useState<'group' | 'single'>('group');
+  const selectStackCell = (char: string) => {
+    setSelectedDoubleChar(char);
+    setDoubleView('group');
+  };
+  const selectDoubleLetter = (char: string) => {
+    setSelectedDoubleChar(char);
+    setDoubleView('single');
+  };
   const ruleTableCell = getStackCell(selectedDoubleChar);
 
   // Sub-tab 3 active selection (default: 'á')
@@ -101,7 +109,9 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
           rules={rules}
           onUpdateRules={onUpdateRules}
           selectedDoubleChar={selectedDoubleChar}
-          setSelectedDoubleChar={setSelectedDoubleChar}
+          setSelectedDoubleChar={selectDoubleLetter}
+          onSelectStackCell={selectStackCell}
+          doubleView={doubleView}
           selectedGlyphChar={selectedGlyphChar}
           setSelectedGlyphChar={setSelectedGlyphChar}
           overrides={overrides}
@@ -122,7 +132,9 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
           rules={rules}
           onUpdateRules={onUpdateRules}
           selectedDoubleChar={selectedDoubleChar}
-          setSelectedDoubleChar={setSelectedDoubleChar}
+          setSelectedDoubleChar={selectDoubleLetter}
+          onSelectStackCell={selectStackCell}
+          doubleView={doubleView}
           selectedGlyphChar={selectedGlyphChar}
           setSelectedGlyphChar={setSelectedGlyphChar}
           overrides={overrides}
@@ -159,8 +171,6 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
             rules={rules}
             overrides={overrides}
             selectedChar={selectedDoubleChar}
-            onSelectChar={setSelectedDoubleChar}
-            onShowSingle={() => setDoubleView('single')}
           />
         )}
 
@@ -172,7 +182,6 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
             rules={rules}
             selectedChar={selectedDoubleChar}
             override={overrides[selectedDoubleChar]}
-            onShowGroup={ruleTableCell ? () => setDoubleView('group') : undefined}
           />
         )}
 
@@ -221,7 +230,8 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
           <DoubleAccentProperties
             font={font}
             templates={templates}
-            onSelectChar={setSelectedDoubleChar}
+            onSelectChar={selectStackCell}
+            doubleView={ruleTableCell && doubleView === 'group' ? 'group' : 'single'}
             rules={rules}
             onUpdateRules={onUpdateRules}
             selectedChar={selectedDoubleChar}

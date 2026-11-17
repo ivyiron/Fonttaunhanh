@@ -85,6 +85,7 @@ interface StackMatrixPanelProps {
   overrides: Record<string, GlyphOverrideState>;
   onUpdateRules: (updates: Partial<AutoPositionRules>) => void;
   selectedChar: string;
+  highlight?: boolean; // false while a single letter (not a cell) is being viewed
   onSelectChar: (char: string) => void;
 }
 
@@ -96,6 +97,7 @@ export const StackMatrixPanel: React.FC<StackMatrixPanelProps> = ({
   overrides,
   onUpdateRules,
   selectedChar,
+  highlight = true,
   onSelectChar
 }) => {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(
@@ -177,7 +179,7 @@ export const StackMatrixPanel: React.FC<StackMatrixPanelProps> = ({
           <React.Fragment key={m}>
             <span className="text-[10px] font-bold text-neutral-500">{MOD_LABEL[m]}</span>
             {STACK_TONES.map((t, i) => {
-              const active = selectedCell?.mod === m && selectedCell?.tone === t;
+              const active = highlight && selectedCell?.mod === m && selectedCell?.tone === t;
               const cell = cells[m + t];
               return (
                 <button

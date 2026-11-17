@@ -53,6 +53,7 @@ interface DoubleAccentPropertiesProps {
   font?: opentype.Font | null;
   templates?: Record<string, DiacriticTemplate>;
   onSelectChar?: (char: string) => void;
+  doubleView?: 'group' | 'single'; // group: editing a rule-table cell; single: one letter
   rules: AutoPositionRules;
   onUpdateRules: (updates: Partial<AutoPositionRules>) => void;
   selectedChar: string;
@@ -64,6 +65,7 @@ interface DoubleAccentPropertiesProps {
 export const DoubleAccentProperties: React.FC<DoubleAccentPropertiesProps> = ({
   font,
   templates,
+  doubleView = 'single',
   rules,
   onUpdateRules,
   selectedChar,
@@ -140,6 +142,8 @@ export const DoubleAccentProperties: React.FC<DoubleAccentPropertiesProps> = ({
 
   return (
     <div className="flex flex-col space-y-2.5 pb-20 text-neutral-900">
+      {doubleView !== 'group' && (
+        <>
       {/* 1. Character Scope & Toggle Card */}
       <div className="p-3 bg-white rounded-xl border border-neutral-200 shadow-2xs space-y-2.5">
         <div className="flex items-center justify-between">
@@ -231,6 +235,9 @@ export const DoubleAccentProperties: React.FC<DoubleAccentPropertiesProps> = ({
             </span>
           )}
         </div>
+      )}
+
+        </>
       )}
 
           {cell && rule ? (
@@ -382,7 +389,7 @@ export const DoubleAccentProperties: React.FC<DoubleAccentPropertiesProps> = ({
               </div>
 
               {/* Per-character nudge on top of the table */}
-              {isCustomForChar && (
+              {isCustomForChar && doubleView !== 'group' && (
                 <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-200 space-y-2.5 text-xs">
                   <span className="font-bold text-neutral-900 text-[11px] block border-b border-neutral-200 pb-1.5">
                     Nhích riêng thanh của '{selectedChar}'

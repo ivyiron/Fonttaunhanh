@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as opentype from 'opentype.js';
 import { ZoomIn, ZoomOut, RotateCcw, Copy } from 'lucide-react';
+import { StageTitle, recipeNote } from './StageTitle';
 import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState, FontMetadata } from '../../types';
 import { composeGlyphPath, VIETNAMESE_RECIPES, getNativeCharSvgPath } from '../../utils';
 
@@ -254,19 +255,7 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
     <div className="flex flex-col h-full space-y-3">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-            Liveview ký tự:
-          </span>
-          <span className="text-base font-bold font-mono bg-neutral-900 text-white dark:bg-amber-500 dark:text-neutral-950 px-2.5 py-0.5 rounded-md shadow-xs">
-            {selectedChar}
-          </span>
-          {recipe && (
-            <span className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">
-              (Gốc: <strong className="text-amber-600 dark:text-amber-400">{recipe.baseChar}</strong> + Dấu: <span className="text-indigo-600 dark:text-indigo-400">{recipe.components.join(', ')}</span>)
-            </span>
-          )}
-        </div>
+        <StageTitle title={selectedChar} note={recipe ? recipeNote(recipe.baseChar, recipe.components) : undefined} />
 
         {/* Guides & Zoom */}
         <div className="flex items-center gap-2 text-xs">
