@@ -28,6 +28,8 @@ interface VietnameseLeftPanelProps {
   rules: AutoPositionRules;
   onUpdateRules: (updates: Partial<AutoPositionRules>) => void;
   selectedDoubleChar: string;
+  keptChars?: Set<string>;          // letters kept exactly as the font draws them
+  regeneratedChars?: string[];      // letters the font has but the app rebuilds
   setSelectedDoubleChar: (char: string) => void; // a letter from the list below: single-letter view
   onSelectStackCell: (char: string) => void;      // a rule-table cell: whole-group view
   doubleView: 'group' | 'single';
@@ -59,6 +61,8 @@ const DOUBLE_ACCENT_GROUPS: Record<string, { lower: string[]; upper: string[] }>
 
 export const VietnameseLeftPanel: React.FC<VietnameseLeftPanelProps> = ({
   font,
+  keptChars,
+  regeneratedChars,
   activeSubTab,
   setActiveSubTab,
   activeDiaId,
@@ -562,6 +566,8 @@ export const VietnameseLeftPanel: React.FC<VietnameseLeftPanelProps> = ({
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
               {filteredGlyphs.map((char) => {
                 const isSelected = selectedGlyphChar === char;
+                const isKept = !!keptChars?.has(char);
+                const isRegen = !!regeneratedChars?.includes(char);
                 const ov = overrides[char];
                 const isCompleted = ov?.isCompleted;
                 const hasTweak =
@@ -591,7 +597,17 @@ export const VietnameseLeftPanel: React.FC<VietnameseLeftPanelProps> = ({
                     }`}
                   >
                     <span>{char}</span>
-                    {hasTweak && (
+                    {(isKept || isRegen) && (
+                      <span
+                        className={`absolute top-1 left-1 text-[8px] leading-none font-sans font-bold ${
+                          isSelected ? 'text-neutral-400' : isRegen ? 'text-amber-600' : 'text-neutral-400'
+                        }`}
+                        title={isRegen ? 'Font có sẵn, đang làm mới' : 'Giữ bản gốc của font'}
+                      >
+                        {isRegen ? '↻' : 'gốc'}
+                      </span>
+                    )}
+                    {hasTweak && !isKept && (
                       <span
                         className="w-1.5 h-1.5 rounded-full bg-amber-500 absolute top-1 right-1"
                         title="Có tinh chỉnh riêng"

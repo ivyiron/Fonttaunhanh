@@ -12,6 +12,7 @@ interface GlyphInspectorCanvasProps {
   rules: AutoPositionRules;
   overrides: Record<string, GlyphOverrideState>;
   selectedChar: string;
+  isKeptNative?: boolean; // the font's own letter is kept: show it as the font draws it
 }
 
 export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
@@ -20,7 +21,8 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
   templates,
   rules,
   overrides,
-  selectedChar
+  selectedChar,
+  isKeptNative = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -114,7 +116,11 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
       let finalPath: any;
       let finalAdvanceWidth = 500;
 
-      if (recipe) {
+      const nativeGlyph = isKeptNative ? font.charToGlyph(selectedChar) : null;
+      if (nativeGlyph && nativeGlyph.path && nativeGlyph.path.commands.length) {
+        finalPath = nativeGlyph.path;
+        finalAdvanceWidth = nativeGlyph.advanceWidth || 500;
+      } else if (recipe) {
         const comp = composeGlyphPath(font, recipe, templates, rules, override, false);
         finalPath = comp.path;
         finalAdvanceWidth = comp.advanceWidth;
@@ -249,13 +255,16 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
     } finally {
       ctx.restore();
     }
-  }, [font, fontMetadata, templates, rules, overrides, selectedChar, recipe, override, showGuides, zoom, containerSize, isDarkMode]);
+  }, [font, fontMetadata, templates, rules, overrides, selectedChar, recipe, override, showGuides, zoom, containerSize, isDarkMode, isKeptNative]);
 
   return (
     <div className="flex flex-col h-full space-y-3">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2">
-        <StageTitle title={selectedChar} note={recipe ? recipeNote(recipe.baseChar, recipe.components) : undefined} />
+        <StageTitle
+          title={selectedChar}
+          note={isKeptNative ? 'bản gốc của font' : recipe ? recipeNote(recipe.baseChar, recipe.components) : undefined}
+        />
 
         {/* Guides & Zoom */}
         <div className="flex items-center gap-2 text-xs">

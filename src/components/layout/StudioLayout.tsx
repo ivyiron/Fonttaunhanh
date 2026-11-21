@@ -41,6 +41,8 @@ interface StudioLayoutProps {
   rules: AutoPositionRules;
   overrides: Record<string, GlyphOverrideState>;
   preserveExistingGlyphs: boolean;
+  regenerateChars: string[];
+  onSetRegenerateChars: (chars: string[]) => void;
   existingGlyphInfo: { count: number; total: number; samples: string[] };
 
   // Edit states
@@ -92,6 +94,8 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
   rules,
   overrides,
   preserveExistingGlyphs,
+  regenerateChars,
+  onSetRegenerateChars,
   existingGlyphInfo,
   customGlyphDesigns,
   spacingRules,
@@ -213,6 +217,8 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                 rules={rules}
                 overrides={overrides}
                 preserveExistingGlyphs={preserveExistingGlyphs}
+                regenerateChars={regenerateChars}
+                onSetRegenerateChars={onSetRegenerateChars}
                 existingGlyphInfo={existingGlyphInfo}
                 onTogglePreserveExisting={onTogglePreserveExisting}
                 onUpdateTemplate={onUpdateTemplate}

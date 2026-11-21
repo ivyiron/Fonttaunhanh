@@ -156,6 +156,7 @@ export interface VietnameseProjectFile {
   customFamilyName?: string;
   customSubfamilyName?: string;
   preserveExistingGlyphs?: boolean;
+  regenerateChars?: string[]; // letters the font has that are rebuilt even though "keep" is on
   templates: Record<string, DiacriticTemplate>;
   rules: AutoPositionRules;
   overrides: Record<string, GlyphOverrideState>;

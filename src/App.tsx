@@ -97,6 +97,8 @@ export default function App() {
 
   // Existing Vietnamese glyph preservation
   const [preserveExistingGlyphs, setPreserveExistingGlyphs] = useState<boolean>(true);
+  // with "Giữ lại các ký tự tiếng Việt đã có" on: letters the font has that are rebuilt anyway
+  const [regenerateChars, setRegenerateChars] = useState<string[]>([]);
   const [existingGlyphInfo, setExistingGlyphInfo] = useState<{
     count: number;
     total: number;
@@ -215,6 +217,7 @@ export default function App() {
           customFamilyName: customFamilyName,
           customSubfamilyName: customSubfamilyName,
           preserveExistingGlyphs: preserveExistingGlyphs,
+          regenerateChars: regenerateChars,
           templates: { ...templates },
           rules: { ...DEFAULT_AUTO_RULES, ...rules },
           overrides: { ...overrides },
@@ -245,6 +248,7 @@ export default function App() {
     customFamilyName,
     customSubfamilyName,
     preserveExistingGlyphs,
+    regenerateChars,
     templates,
     rules,
     overrides,
@@ -373,6 +377,7 @@ export default function App() {
         };
       });
       setOverrides(initialOverrides);
+      setRegenerateChars([]);
       // defaults are tuned on a 1000-unit em: carry the same proportions to fonts on other UPMs
       setRules(scaleRulesToUpm(DEFAULT_AUTO_RULES, loadedFont.unitsPerEm || 1000));
     },
@@ -573,6 +578,7 @@ export default function App() {
         };
 
         const charHornInfo: Record<string, { yMin: number; yMax: number; excessRight: number }> = {};
+        const regenerateSet = new Set<string>(regenerateChars);
 
         // Compose and inject all Vietnamese composite glyphs (bypassed if skipVietnamize is checked)
         if (!skipVietnamize) {
@@ -588,7 +594,7 @@ export default function App() {
 
             const isBaseChar = recipe.components.length === 0;
 
-            if (!isBaseChar && preserveExistingGlyphs && hasOriginalPath) {
+            if (!isBaseChar && preserveExistingGlyphs && hasOriginalPath && !regenerateSet.has(recipe.char)) {
               return;
             }
 
@@ -603,7 +609,8 @@ export default function App() {
               templates,
               rules,
               override,
-              preserveExistingGlyphs
+              preserveExistingGlyphs,
+              regenerateSet
             );
             if (hornInfo) {
               charHornInfo[recipe.char] = hornInfo;
@@ -953,6 +960,7 @@ export default function App() {
       rules,
       overrides,
       preserveExistingGlyphs,
+      regenerateChars,
       customFamilyName,
       customSubfamilyName,
       spacingRules,
@@ -991,6 +999,7 @@ export default function App() {
         customFamilyName: customFamilyName,
         customSubfamilyName: customSubfamilyName,
         preserveExistingGlyphs: preserveExistingGlyphs,
+        regenerateChars: regenerateChars,
         templates: { ...templates },
         rules: { ...DEFAULT_AUTO_RULES, ...rules },
         overrides: { ...overrides },
@@ -1035,6 +1044,7 @@ export default function App() {
     customFamilyName,
     customSubfamilyName,
     preserveExistingGlyphs,
+    regenerateChars,
     templates,
     rules,
     overrides,
@@ -1067,6 +1077,7 @@ export default function App() {
       if (projectData.customSubfamilyName !== undefined) {
         setCustomSubfamilyName(projectData.customSubfamilyName);
       }
+      setRegenerateChars(Array.isArray(projectData.regenerateChars) ? projectData.regenerateChars : []);
       if (projectData.preserveExistingGlyphs !== undefined) {
         setPreserveExistingGlyphs(projectData.preserveExistingGlyphs);
       }
@@ -1256,6 +1267,8 @@ export default function App() {
           rules={rules}
           overrides={overrides}
           preserveExistingGlyphs={preserveExistingGlyphs}
+          regenerateChars={regenerateChars}
+          onSetRegenerateChars={setRegenerateChars}
           existingGlyphInfo={existingGlyphInfo}
           customGlyphDesigns={customGlyphDesigns}
           spacingRules={spacingRules}

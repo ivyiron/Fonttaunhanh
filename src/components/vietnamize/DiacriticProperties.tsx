@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DiacriticTemplate, AutoPositionRules } from '../../types';
 import { NumericInput } from '../NumericInput';
+import { KeepCharsDialog } from './KeepCharsDialog';
 import {
   DEFAULT_DIACRITICS,
   extractPathDataFromSvg,
@@ -36,6 +37,9 @@ interface DiacriticPropertiesProps {
   onToggleCapitalEditing?: (val: boolean) => void;
   existingGlyphInfo?: { count: number; total: number; samples: string[] };
   preserveExistingGlyphs?: boolean;
+  nativeChars?: string[];
+  regenerateChars?: string[];
+  onSetRegenerateChars?: (chars: string[]) => void;
   onTogglePreserveExisting?: (val: boolean) => void;
 }
 
@@ -51,8 +55,12 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
   onToggleCapitalEditing,
   existingGlyphInfo,
   preserveExistingGlyphs,
+  nativeChars = [],
+  regenerateChars = [],
+  onSetRegenerateChars,
   onTogglePreserveExisting
 }) => {
+  const [keepDialogOpen, setKeepDialogOpen] = useState(false);
   const [aspectLocked, setAspectLocked] = useState<boolean>(true);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [showGlobalGaps, setShowGlobalGaps] = useState<boolean>(false);
@@ -237,9 +245,33 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
                   <div className="w-9 h-5 bg-neutral-300 dark:bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neutral-900 dark:peer-checked:bg-amber-500"></div>
                 </div>
               </label>
+              {preserveExistingGlyphs && onSetRegenerateChars && nativeChars.length > 0 && (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Giữ {nativeChars.length - regenerateChars.length} · Làm mới {regenerateChars.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setKeepDialogOpen(true)}
+                    className="px-2 py-1 text-[11px] font-bold rounded-md border border-neutral-200 dark:border-[#3e3e50] bg-white dark:bg-[#282834] hover:border-neutral-400 cursor-pointer"
+                  >
+                    Chọn ký tự
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
+      )}
+
+      {onSetRegenerateChars && (
+        <KeepCharsDialog
+          open={keepDialogOpen}
+          nativeChars={nativeChars}
+          regenerateChars={regenerateChars}
+          onChange={onSetRegenerateChars}
+          onClose={() => setKeepDialogOpen(false)}
+        />
       )}
 
       {/* Uppercase specific variant toggle box */}
