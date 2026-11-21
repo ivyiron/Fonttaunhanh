@@ -13,8 +13,9 @@ import {
   Type,
   Settings
 } from 'lucide-react';
-import { FontMetadata } from '../../types';
+import { FontMetadata, VietnameseProjectFile } from '../../types';
 import { HeaderSettingsMenu } from './HeaderSettingsMenu';
+import { ProjectMenu } from './ProjectMenu';
 
 export type MainTabType = 'vietnamize' | 'glyph-edit' | 'kerning';
 
@@ -29,6 +30,8 @@ interface StudioHeaderProps {
   onCompileFont: () => void;
   compiling: boolean;
   onOpenExport: () => void;
+  onSaveProject: () => void;
+  onLoadProject: (project: VietnameseProjectFile) => void;
   // Global Settings props
   isDarkMode: boolean;
   onToggleTheme: (dark: boolean) => void;
@@ -50,6 +53,8 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   onCompileFont,
   compiling,
   onOpenExport,
+  onSaveProject,
+  onLoadProject,
   isDarkMode,
   onToggleTheme,
   skipVietnamize,
@@ -240,17 +245,14 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           <span>Tải lên font khác</span>
         </button>
 
-        {/* Sync / Compile Font */}
-        <button
-          type="button"
-          onClick={onCompileFont}
-          disabled={compiling || !font}
-          className="py-1.5 px-2.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-[#2c2c38] dark:hover:bg-[#383848] text-neutral-800 dark:text-neutral-100 border border-neutral-200 dark:border-[#3e3e50] text-xs font-bold rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
-          title="Đồng bộ hóa font và kiểm tra"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${compiling ? 'animate-spin text-amber-600 dark:text-amber-400' : 'text-neutral-600 dark:text-amber-400'}`} />
-          <span className="hidden sm:inline">{compiling ? 'Đang cập nhật...' : 'Cập nhật font'}</span>
-        </button>
+        {/* Preview rebuilds on its own; only show that it is working */}
+        {compiling && (
+          <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400" title="Đang cập nhật font xem thử">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600 dark:text-amber-400" />
+          </span>
+        )}
+
+        <ProjectMenu disabled={!font} onSaveProject={onSaveProject} onLoadProject={onLoadProject} />
 
         {/* Save & Export Font */}
         <button

@@ -11,6 +11,9 @@ interface GlyphPropertiesProps {
   override?: GlyphOverrideState;
   onUpdateOverride: (char: string, updates: Partial<GlyphOverrideState>) => void;
   onResetOverride: (char: string) => void;
+  isNative?: boolean;               // the font already draws this letter (and "keep" is on)
+  isKept?: boolean;                 // ...and it is kept as drawn
+  onSetKept?: (keep: boolean) => void;
 }
 
 export const GlyphProperties: React.FC<GlyphPropertiesProps> = ({
@@ -18,7 +21,10 @@ export const GlyphProperties: React.FC<GlyphPropertiesProps> = ({
   selectedChar,
   override,
   onUpdateOverride,
-  onResetOverride
+  onResetOverride,
+  isNative = false,
+  isKept = false,
+  onSetKept
 }) => {
   const recipe = VIETNAMESE_RECIPES.find((r) => r.char === selectedChar);
   const isCompositeDouble = recipe && recipe.components.length === 2;
@@ -62,7 +68,11 @@ export const GlyphProperties: React.FC<GlyphPropertiesProps> = ({
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-neutral-900">Ký tự: {selectedChar}</span>
-                {isCustomForChar ? (
+                {isKept ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-100 text-neutral-600">
+                    Bản gốc
+                  </span>
+                ) : isCustomForChar ? (
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-900">
                     Tinh chỉnh
                   </span>
@@ -73,8 +83,12 @@ export const GlyphProperties: React.FC<GlyphPropertiesProps> = ({
                 )}
               </div>
               <span className="text-[10.5px] text-neutral-500 block">
-                {isCustomForChar
+                {isKept
+                  ? 'Giữ nguyên như font vẽ'
+                  : isCustomForChar
                   ? 'Ký tự đã được tinh chỉnh'
+                  : isNative
+                  ? 'Font có sẵn, đang làm mới'
                   : 'Ký tự được tạo tự động'}
               </span>
             </div>
@@ -104,8 +118,33 @@ export const GlyphProperties: React.FC<GlyphPropertiesProps> = ({
             </button>
           </div>
         </div>
+        {isNative && onSetKept && (
+          <div className="grid grid-cols-2 gap-1 p-1 bg-neutral-100 rounded-lg border border-neutral-200">
+            {[
+              { keep: true, label: 'Giữ bản gốc' },
+              { keep: false, label: 'Làm mới' }
+            ].map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                onClick={() => onSetKept(o.keep)}
+                className={`py-1.5 text-xs font-bold rounded-md transition text-center cursor-pointer ${
+                  isKept === o.keep ? 'bg-neutral-900 text-white shadow-2xs' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/50'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
+      {isKept ? (
+        <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-[11px] text-neutral-600 leading-relaxed">
+          Chữ này giữ nguyên như font vẽ. Chọn "Làm mới" để app ghép lại và chỉnh được vị trí, kích thước.
+        </div>
+      ) : (
+        <>
       {/* Advance Width Tweak */}
       <div className="space-y-1.5 bg-neutral-50/80 p-2.5 rounded-xl border border-neutral-200/80">
         <div className="flex justify-between items-center text-[11px] text-neutral-700 font-semibold">
@@ -328,6 +367,8 @@ export const GlyphProperties: React.FC<GlyphPropertiesProps> = ({
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

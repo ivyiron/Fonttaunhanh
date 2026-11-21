@@ -96,8 +96,9 @@ export const GlyphEditLeftPanel: React.FC<GlyphEditLeftPanelProps> = ({
       const g = font.glyphs.get(i);
       if (!g) continue;
 
-      // Skip .notdef if desired, or include it so user can design .notdef
+      // Hide .notdef and control characters: nothing to draw there.
       const unicode = g.unicode;
+      if (g.name === '.notdef' || (unicode !== undefined && (unicode < 0x20 || (unicode >= 0x7f && unicode < 0xa0)))) continue;
       const char = unicode ? String.fromCharCode(unicode) : '';
       const name = g.name || (char ? char : `glyph_${i}`);
       const unicodeHex = unicode
@@ -123,7 +124,10 @@ export const GlyphEditLeftPanel: React.FC<GlyphEditLeftPanelProps> = ({
       });
     }
 
-    return list;
+    // Latin and Vietnamese first, then everything else in font order.
+    const isLatin = (u?: number) =>
+      u !== undefined && ((u >= 0x20 && u <= 0x24f) || (u >= 0x1e00 && u <= 0x1eff) || u === 0x20ab);
+    return [...list.filter((g) => isLatin(g.unicode)), ...list.filter((g) => !isLatin(g.unicode))];
   }, [font]);
 
   // Count edited glyphs

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Switch } from '../Switch';
 import * as opentype from 'opentype.js';
 import { Layers, Sparkles, SlidersHorizontal, Info, CheckCircle2, RotateCcw } from 'lucide-react';
 import { AutoPositionRules, GlyphOverrideState, DiacriticTemplate, StackMatrix, StackRule, StackMod, StackTone } from '../../types';
@@ -332,13 +333,8 @@ export const DoubleAccentProperties: React.FC<DoubleAccentPropertiesProps> = ({
                 <div className="flex items-center justify-between border-b border-neutral-200 pb-1.5">
                   <span className="font-bold text-neutral-900 text-[11px]">Nén dấu kép</span>
                   <label className="flex items-center gap-1.5 text-[10px] font-bold text-neutral-600 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={matrix.keepWeight}
-                      onChange={(e) => updateMatrix({ keepWeight: e.target.checked })}
-                      className="w-3.5 h-3.5 accent-neutral-900 rounded cursor-pointer"
-                    />
                     <span>Bù nét về độ đậm gốc</span>
+                    <Switch small checked={matrix.keepWeight} onChange={(on) => updateMatrix({ keepWeight: on })} />
                   </label>
                 </div>
                 <div className="grid grid-cols-2 gap-2">

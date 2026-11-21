@@ -6,7 +6,7 @@ import {
   getCharacterFamilyGroup,
   GeneratedKerningPair
 } from '../../utils/kerningEngine';
-import { KerningPairsLeftPanel } from './KerningPairsLeftPanel';
+import { KerningPairsLeftPanel, KerningPairFilter } from './KerningPairsLeftPanel';
 import { KerningLiveViewMiddle } from './KerningLiveViewMiddle';
 import { KerningSettingsRightPanel } from './KerningSettingsRightPanel';
 import { ResizableDivider } from '../ResizableDivider';
@@ -22,6 +22,10 @@ interface KerningStudioProps {
   onUpdateKerningSettings: (settings: Partial<AutoKerningSettings>) => void;
   onCompileFont: () => void;
   compiling: boolean;
+  autoSpacingActive: boolean;
+  autoKerningActive: boolean;
+  onSetAutoSpacingActive: (on: boolean) => void;
+  onSetAutoKerningActive: (on: boolean) => void;
 }
 
 export const KerningStudio: React.FC<KerningStudioProps> = ({
@@ -34,7 +38,11 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
   onUpdateSpacingRules,
   onUpdateKerningSettings,
   onCompileFont,
-  compiling
+  compiling,
+  autoSpacingActive,
+  autoKerningActive,
+  onSetAutoSpacingActive,
+  onSetAutoKerningActive
 }) => {
   // Panel resizing widths
   const [leftWidth, setLeftWidth] = useState<number>(470);
@@ -49,9 +57,8 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
   };
 
   // State for Kerning Pairs
-  const [selectedCategory, setSelectedCategory] = useState<
-    'all' | 'upper_upper' | 'upper_lower' | 'vietnamese' | 'punctuation' | 'number' | 'custom'
-  >('all');
+  const [selectedCategory, setSelectedCategory] = useState<KerningPairFilter>('all');
+  const [selectedPairKey, setSelectedPairKey] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [smartGroupEdit, setSmartGroupEdit] = useState<boolean>(true);
 
@@ -150,25 +157,37 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
     };
   }, [compiledBuffer]);
 
-  // Auto-sync compiled font when kerning or spacing settings change
-  const onCompileFontRef = useRef(onCompileFont);
-  useEffect(() => {
-    onCompileFontRef.current = onCompileFont;
-  }, [onCompileFont]);
-
-  useEffect(() => {
-    if (!font) return;
-    const timer = setTimeout(() => {
-      onCompileFontRef.current();
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [font, kerningSettings, spacingRules]);
-
   // Generate All Kerning Pairs with full Unicode support
   const kerningPairs = useMemo<GeneratedKerningPair[]>(() => {
     if (!font) return [];
     return generateFullFontKerningPairs(font, kerningSettings);
   }, [font, kerningSettings]);
+
+  // The original font's own kerning for a pair (0 when it has none or lacks the glyph).
+  const originalValueOf = useCallback(
+    (pair: GeneratedKerningPair): number => {
+      if (!font) return 0;
+      try {
+        const gl = font.glyphs.get(pair.indexLeft);
+        const gr = font.glyphs.get(pair.indexRight);
+        if (!gl || !gr || pair.indexLeft >= font.glyphs.length || pair.indexRight >= font.glyphs.length) return 0;
+        return Math.round(font.getKerningValue(gl, gr) || 0);
+      } catch {
+        return 0;
+      }
+    },
+    [font]
+  );
+
+  const changedKeys = useMemo(() => {
+    const set = new Set<string>();
+    kerningPairs.forEach((p) => {
+      if (p.value !== originalValueOf(p)) set.add(`${p.charLeft},${p.charRight}`);
+    });
+    return set;
+  }, [kerningPairs, originalValueOf]);
+
+  const customCount = useMemo(() => kerningPairs.filter((p) => p.category === 'custom').length, [kerningPairs]);
 
   // Filtered Kerning Pairs based on Category and Search Query
   const filteredPairs = useMemo<GeneratedKerningPair[]>(() => {
@@ -178,6 +197,8 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
           const pairKey = `${pair.charLeft},${pair.charRight}`;
           const isCustom = Object.prototype.hasOwnProperty.call(kerningSettings.customPairs, pairKey);
           if (!isCustom) return false;
+        } else if (selectedCategory === 'changed') {
+          if (!changedKeys.has(`${pair.charLeft},${pair.charRight}`)) return false;
         } else if (pair.category !== selectedCategory) {
           return false;
         }
@@ -190,7 +211,7 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
       }
       return true;
     });
-  }, [kerningPairs, selectedCategory, searchFilter, kerningSettings.customPairs]);
+  }, [kerningPairs, selectedCategory, searchFilter, kerningSettings.customPairs, changedKeys]);
 
   // Handle individual pair value edit
   const handleEditPairValue = useCallback(
@@ -241,6 +262,24 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
     },
     [kerningSettings, onUpdateKerningSettings, smartGroupEdit]
   );
+
+  // Drop the hand-set value so the pair goes back to what auto kerning / the font gives
+  const handleClearCustomPair = useCallback(
+    (charLeft: string, charRight: string) => {
+      const next = { ...kerningSettings.customPairs };
+      const groupL = smartGroupEdit ? getCharacterFamilyGroup(charLeft) : [charLeft];
+      const groupR = smartGroupEdit ? getCharacterFamilyGroup(charRight) : [charRight];
+      for (const l of groupL) for (const r of groupR) delete next[`${l},${r}`];
+      onUpdateKerningSettings({ customPairs: next });
+    },
+    [kerningSettings, onUpdateKerningSettings, smartGroupEdit]
+  );
+
+  const selectedPair = useMemo(() => {
+    if (!selectedPairKey) return null;
+    const p = kerningPairs.find((x) => `${x.charLeft},${x.charRight}` === selectedPairKey);
+    return p ? { left: p.charLeft, right: p.charRight, original: originalValueOf(p), value: p.value } : null;
+  }, [selectedPairKey, kerningPairs, originalValueOf]);
 
   // Handle adding custom pair
   const handleAddCustomPair = useCallback(
@@ -301,6 +340,12 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
           onAddCustomPair={handleAddCustomPair}
           onEditPairValue={handleEditPairValue}
           onRemovePair={handleRemovePair}
+          onClearCustomPair={handleClearCustomPair}
+          selectedPairKey={selectedPairKey}
+          onSelectPair={setSelectedPairKey}
+          originalValueOf={originalValueOf}
+          customCount={customCount}
+          changedCount={changedKeys.size}
           compiledRegistered={compiledRegistered}
           compiledFamilyName={compiledFamilyName}
           originalRegistered={originalRegistered}
@@ -328,6 +373,12 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
           onAddCustomPair={handleAddCustomPair}
           onEditPairValue={handleEditPairValue}
           onRemovePair={handleRemovePair}
+          onClearCustomPair={handleClearCustomPair}
+          selectedPairKey={selectedPairKey}
+          onSelectPair={setSelectedPairKey}
+          originalValueOf={originalValueOf}
+          customCount={customCount}
+          changedCount={changedKeys.size}
           compiledRegistered={compiledRegistered}
           compiledFamilyName={compiledFamilyName}
           originalRegistered={originalRegistered}
@@ -356,6 +407,7 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
           compiledFamilyName={compiledFamilyName}
           originalRegistered={originalRegistered}
           originalFamilyName={originalFamilyName}
+          selectedPair={selectedPair}
         />
       </div>
 
@@ -381,6 +433,10 @@ export const KerningStudio: React.FC<KerningStudioProps> = ({
           onUpdateKerningSettings={onUpdateKerningSettings}
           onCompileFont={onCompileFont}
           compiling={compiling}
+          autoSpacingActive={autoSpacingActive}
+          autoKerningActive={autoKerningActive}
+          onSetAutoSpacingActive={onSetAutoSpacingActive}
+          onSetAutoKerningActive={onSetAutoKerningActive}
         />
       </div>
     </div>

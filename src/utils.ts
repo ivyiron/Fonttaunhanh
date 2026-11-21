@@ -2404,7 +2404,9 @@ export function composeGlyphPath(
   templates: Record<string, DiacriticTemplate>,
   rules: AutoPositionRules,
   overrides?: GlyphOverrideState,
-  preserveExistingGlyphs: boolean = true
+  preserveExistingGlyphs: boolean = true,
+  // letters the font already has but the user wants rebuilt (kept letters stay as drawn)
+  regenerateChars?: ReadonlySet<string>
 ): { 
   path: opentype.Path; 
   advanceWidth: number; 
@@ -2454,7 +2456,7 @@ export function composeGlyphPath(
 
   // If preserveExistingGlyphs is enabled and the target character itself is available in the font (and no manual override exists),
   // use the native precomposed glyph directly from the font (unless custom cap compression/override is active).
-  if (preserveExistingGlyphs && font && !hasUserOverrides) {
+  if (preserveExistingGlyphs && font && !hasUserOverrides && !(regenerateChars && regenerateChars.has(recipe.char))) {
     const existingIdx = font.charToGlyphIndex(recipe.char);
     if (existingIdx > 0) {
       const existingGlyph = font.glyphs.get(existingIdx);
@@ -2473,7 +2475,8 @@ export function composeGlyphPath(
 
   if (preserveExistingGlyphs && font) {
     const preInfo = PRECOMPOSED_BASE_MAP[recipe.char];
-    if (preInfo) {
+    // a base like 'â' only counts as the font's own when that letter itself is kept
+    if (preInfo && !(regenerateChars && regenerateChars.has(preInfo.precomposedBaseChar))) {
       const preIdx = font.charToGlyphIndex(preInfo.precomposedBaseChar);
       if (preIdx > 0) {
         const preGlyph = font.glyphs.get(preIdx);

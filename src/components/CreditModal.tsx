@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_VERSION } from '../version';
 import { ShieldAlert, X, Heart } from 'lucide-react';
 import { MosaicCanvas } from './MosaicCanvas';
 
@@ -37,8 +38,9 @@ export const CreditModal: React.FC<CreditModalProps> = ({ isOpen, onClose }) => 
 
         {/* Header */}
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-          <h2 id="credit-modal-title" className="text-base font-extrabold tracking-tight">
+          <h2 id="credit-modal-title" className="text-base font-extrabold tracking-tight flex items-baseline gap-2">
             Credit & Miễn Trừ Trách Nhiệm
+            <span className="font-mono text-[11px] font-bold text-amber-400">v{APP_VERSION}</span>
           </h2>
           <button
             type="button"

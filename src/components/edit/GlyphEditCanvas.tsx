@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as opentype from 'opentype.js';
-import { ZoomIn, ZoomOut, RotateCcw, Layers, Eye, Move } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Layers, Eye } from 'lucide-react';
 import { CustomGlyphDesign, FontMetadata } from '../../types';
 import {
   parseSvgPath,
@@ -48,14 +48,6 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
   }, []);
 
   // Dragging state for direct canvas interactive positioning
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const dragStartRef = useRef<{ x: number; y: number; initialOffsetX: number; initialOffsetY: number }>({
-    x: 0,
-    y: 0,
-    initialOffsetX: 0,
-    initialOffsetY: 0
-  });
-
   // Track container sizing & wheel zoom
   useEffect(() => {
     const container = containerRef.current;
@@ -399,45 +391,6 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
     isDarkMode
   ]);
 
-  // Handle canvas mouse drag to adjust offsetX and offsetY interactively
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!customDesign?.svgPath) return;
-    setIsDragging(true);
-    dragStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      initialOffsetX: customDesign.offsetX || 0,
-      initialOffsetY: customDesign.offsetY || 0
-    };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging || !customDesign?.svgPath) return;
-    const deltaX = e.clientX - dragStartRef.current.x;
-    const deltaY = e.clientY - dragStartRef.current.y;
-
-    // Convert pixel delta to font units delta
-    const cssWidth = containerSize.width || 600;
-    const paddingX = 70;
-    const totalFontHeight = ascender - descender;
-    const availableH = (containerSize.height || 500) - 120;
-    const baseScale = Math.min((cssWidth - paddingX * 2) / (unitsPerEm * 1.2), availableH / totalFontHeight);
-    const scaleFactor = Math.max(0.1, baseScale * zoom);
-
-    const fontDeltaX = Math.round(deltaX / scaleFactor);
-    // In canvas Y goes down, in font Y goes up
-    const fontDeltaY = Math.round(-deltaY / scaleFactor);
-
-    onUpdateDesign({
-      offsetX: dragStartRef.current.initialOffsetX + fontDeltaX,
-      offsetY: dragStartRef.current.initialOffsetY + fontDeltaY
-    });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
   return (
     <div className="flex flex-col h-full bg-transparent select-none space-y-3">
       {/* Top Header Controls Bar */}
@@ -507,11 +460,11 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
             onClick={() => setShowGuides(!showGuides)}
             className={`px-2 py-1 text-xs font-medium whitespace-nowrap rounded-md border transition cursor-pointer ${
               showGuides
-                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/50'
+                ? 'bg-neutral-900 dark:bg-amber-500 text-white dark:text-neutral-950 border-neutral-900 dark:border-amber-500'
                 : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
-            {showGuides ? '✓ Đường gióng' : 'Đường gióng'}
+            Đường gióng
           </button>
 
           {/* Zoom buttons */}
@@ -557,18 +510,9 @@ export const GlyphEditCanvas: React.FC<GlyphEditCanvasProps> = ({
       >
         <canvas
           ref={canvasRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
           className="absolute inset-0 w-full h-full block"
         />
 
-        {/* Tip overlay at bottom */}
-        <div className="absolute bottom-2 left-3 pointer-events-none text-[10px] text-neutral-600 dark:text-neutral-300 bg-white/90 dark:bg-[#262632]/95 backdrop-blur-xs px-2.5 py-1 rounded-md border border-neutral-200/80 dark:border-[#3a3a4c] flex items-center gap-1.5 shadow-xs">
-          <Move className="w-3 h-3 text-neutral-500 dark:text-amber-400" />
-          <span>Kéo chuột trên canvas để di chuyển nhanh vị trí ký tự SVG</span>
-        </div>
       </div>
     </div>
   );

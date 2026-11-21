@@ -565,7 +565,7 @@ export const GlyphEditRightPanel: React.FC<GlyphEditRightPanelProps> = ({
                   step={5}
                   min={-unitsPerEm}
                   max={unitsPerEm}
-                  unit="px"
+                  unit="UPM"
                 />
               </div>
               <input
@@ -590,7 +590,7 @@ export const GlyphEditRightPanel: React.FC<GlyphEditRightPanelProps> = ({
                   step={5}
                   min={-unitsPerEm}
                   max={unitsPerEm}
-                  unit="px"
+                  unit="UPM"
                 />
               </div>
               <input

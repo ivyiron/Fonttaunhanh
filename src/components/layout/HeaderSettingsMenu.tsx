@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { Switch } from '../Switch';
 import {
   Sun,
   Moon,
@@ -111,50 +112,30 @@ export const HeaderSettingsMenu: React.FC<HeaderSettingsMenuProps> = ({
         </div>
       </div>
 
-      {/* 2. Checkbox: Bỏ qua Việt Hóa */}
+      {/* 2. Bỏ qua Việt Hóa */}
       <label className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-neutral-100/80 dark:hover:bg-[#2b2b38] transition cursor-pointer">
-        <input
-          type="checkbox"
-          checked={skipVietnamize}
-          onChange={(e) => onToggleSkipVietnamize(e.target.checked)}
-          className="mt-0.5 rounded border-neutral-300 text-neutral-900 focus:ring-0 cursor-pointer accent-neutral-900 dark:accent-amber-500 w-3.5 h-3.5"
-        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-[11px] text-neutral-900 dark:text-neutral-100">Bỏ qua Việt Hóa</span>
-            {skipVietnamize && (
-              <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 rounded text-[9px] font-bold">
-                Bật
-              </span>
-            )}
           </div>
           <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight mt-0.5">
             Chỉnh sửa glyph ở tab 2 hoặc kerning ở tab 3 và tải font về trực tiếp mà không cần qua bước Việt hóa.
           </p>
         </div>
+        <span className="mt-0.5"><Switch checked={skipVietnamize} onChange={onToggleSkipVietnamize} /></span>
       </label>
 
-      {/* 3. Checkbox: Lưu phiên làm việc */}
+      {/* 3. Lưu phiên làm việc */}
       <label className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-neutral-100/80 dark:hover:bg-[#2b2b38] transition cursor-pointer">
-        <input
-          type="checkbox"
-          checked={saveSessionEnabled}
-          onChange={(e) => onToggleSaveSession(e.target.checked)}
-          className="mt-0.5 rounded border-neutral-300 text-neutral-900 focus:ring-0 cursor-pointer accent-neutral-900 dark:accent-amber-500 w-3.5 h-3.5"
-        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-[11px] text-neutral-900 dark:text-neutral-100">Lưu phiên làm việc</span>
-            {saveSessionEnabled && (
-              <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40 rounded text-[9px] font-bold">
-                IndexedDB
-              </span>
-            )}
           </div>
           <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight mt-0.5">
             Tự động lưu dự án và khôi phục phiên làm việc cũ.
           </p>
         </div>
+        <span className="mt-0.5"><Switch checked={saveSessionEnabled} onChange={onToggleSaveSession} /></span>
       </label>
 
       <div className="my-1 border-t border-neutral-100 dark:border-[#353545]" />

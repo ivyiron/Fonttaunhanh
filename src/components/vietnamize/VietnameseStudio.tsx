@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as opentype from 'opentype.js';
 import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState, FontMetadata } from '../../types';
 import { VietnameseLeftPanel, VietnamizeSubTab } from './VietnameseLeftPanel';
@@ -11,7 +11,7 @@ import { GlyphProperties } from './GlyphProperties';
 import { FontDiacriticsLibraryModal } from './FontDiacriticsLibraryModal';
 import { ResizableDivider } from '../ResizableDivider';
 import { StackGroupCanvas } from './StackGroupCanvas';
-import { getStackCell } from '../../utils';
+import { getStackCell, VIETNAMESE_RECIPES } from '../../utils';
 
 interface VietnameseStudioProps {
   font: opentype.Font | null;
@@ -20,6 +20,8 @@ interface VietnameseStudioProps {
   rules: AutoPositionRules;
   overrides: Record<string, GlyphOverrideState>;
   preserveExistingGlyphs: boolean;
+  regenerateChars: string[];
+  onSetRegenerateChars: (chars: string[]) => void;
   existingGlyphInfo: { count: number; total: number; samples: string[] };
   onTogglePreserveExisting: (val: boolean) => void;
   onUpdateTemplate: (id: string, updates: Partial<DiacriticTemplate>) => void;
@@ -36,6 +38,8 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
   rules,
   overrides,
   preserveExistingGlyphs,
+  regenerateChars,
+  onSetRegenerateChars,
   existingGlyphInfo,
   onTogglePreserveExisting,
   onUpdateTemplate,
@@ -65,6 +69,29 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
     setDoubleView('single');
   };
   const ruleTableCell = getStackCell(selectedDoubleChar);
+
+  // Vietnamese letters the font already draws, and which of them are kept as drawn
+  const nativeChars = useMemo(() => {
+    if (!font) return [] as string[];
+    return VIETNAMESE_RECIPES.filter((r) => {
+      if (r.components.length === 0) return false;
+      const idx = font.charToGlyphIndex(r.char);
+      if (idx <= 0) return false;
+      const g = font.glyphs.get(idx);
+      return !!(g && g.path && g.path.commands && g.path.commands.length > 0);
+    }).map((r) => r.char);
+  }, [font]);
+  const keptChars = useMemo(() => {
+    if (!preserveExistingGlyphs) return new Set<string>();
+    const regen = new Set(regenerateChars);
+    return new Set(nativeChars.filter((c) => !regen.has(c)));
+  }, [nativeChars, regenerateChars, preserveExistingGlyphs]);
+  const setKeepChar = (char: string, keep: boolean) => {
+    const next = new Set(regenerateChars);
+    if (keep) next.delete(char);
+    else next.add(char);
+    onSetRegenerateChars(nativeChars.filter((c) => next.has(c)));
+  };
 
   // Sub-tab 3 active selection (default: 'á')
   const [selectedGlyphChar, setSelectedGlyphChar] = useState<string>('á');
@@ -100,6 +127,8 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
       >
         <VietnameseLeftPanel
           font={font}
+          keptChars={keptChars}
+          regeneratedChars={preserveExistingGlyphs ? regenerateChars : []}
           activeSubTab={activeSubTab}
           setActiveSubTab={setActiveSubTab}
           activeDiaId={activeDiaId}
@@ -123,6 +152,8 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
       <div className="lg:hidden bg-white border-b border-neutral-200 p-2.5 shrink-0 max-h-72 overflow-y-auto">
         <VietnameseLeftPanel
           font={font}
+          keptChars={keptChars}
+          regeneratedChars={preserveExistingGlyphs ? regenerateChars : []}
           activeSubTab={activeSubTab}
           setActiveSubTab={setActiveSubTab}
           activeDiaId={activeDiaId}
@@ -193,6 +224,7 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
             rules={rules}
             overrides={overrides}
             selectedChar={selectedGlyphChar}
+            isKeptNative={keptChars.has(selectedGlyphChar)}
           />
         )}
       </div>
@@ -223,6 +255,9 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
             existingGlyphInfo={existingGlyphInfo}
             preserveExistingGlyphs={preserveExistingGlyphs}
             onTogglePreserveExisting={onTogglePreserveExisting}
+            nativeChars={nativeChars}
+            regenerateChars={regenerateChars}
+            onSetRegenerateChars={onSetRegenerateChars}
           />
         )}
 
@@ -245,6 +280,9 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
           <GlyphProperties
             font={font}
             selectedChar={selectedGlyphChar}
+            isNative={preserveExistingGlyphs && nativeChars.includes(selectedGlyphChar)}
+            isKept={keptChars.has(selectedGlyphChar)}
+            onSetKept={(keep: boolean) => setKeepChar(selectedGlyphChar, keep)}
             override={overrides[selectedGlyphChar]}
             onUpdateOverride={onUpdateOverride}
             onResetOverride={onResetOverride}

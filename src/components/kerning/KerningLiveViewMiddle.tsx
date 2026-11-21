@@ -14,6 +14,17 @@ import {
 } from 'lucide-react';
 import { AutoSpacingRules, FontMetadata } from '../../types';
 
+// Test strings around a pair: flat-sided (H n) and round (O o) neighbours.
+const isUpperChar = (c: string) => c !== c.toLowerCase() && c === c.toUpperCase();
+const pairContext = (l: string, r: string) => {
+  const p = l + r;
+  const a = isUpperChar(l) ? 'HH' : 'nn';
+  const b = isUpperChar(r) ? 'HH' : 'nn';
+  const ra = isUpperChar(l) ? 'OO' : 'oo';
+  const rb = isUpperChar(r) ? 'OO' : 'oo';
+  return `${a}${p}${b}  ${ra}${p}${rb}  ${p}${p}${p}`;
+};
+
 interface KerningLiveViewMiddleProps {
   sampleText: string;
   setSampleText: (text: string) => void;
@@ -26,6 +37,7 @@ interface KerningLiveViewMiddleProps {
   compiledFamilyName: string | null;
   originalRegistered: boolean;
   originalFamilyName: string | null;
+  selectedPair?: { left: string; right: string; original: number; value: number } | null;
 }
 
 export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
@@ -39,7 +51,8 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
   compiledRegistered,
   compiledFamilyName,
   originalRegistered,
-  originalFamilyName
+  originalFamilyName,
+  selectedPair
 }) => {
   const [previewMode, setPreviewMode] = useState<'side_by_side' | 'overlay' | 'single'>('side_by_side');
   const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>(() => {
@@ -245,6 +258,40 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
         )}
       </div>
 
+      {/* Selected pair in context: original font vs new font */}
+      {selectedPair && (
+        <div className="shrink-0 bg-neutral-50 p-2.5 rounded-lg border border-neutral-200 space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] font-bold text-neutral-700">
+            <span>
+              {selectedPair.left}
+              {selectedPair.right}
+            </span>
+            <span className="font-mono text-[10px] text-neutral-500">
+              gốc {selectedPair.original} → {selectedPair.value}
+            </span>
+          </div>
+          {[
+            { label: 'Gốc', family: originalRegistered ? originalFamilyName : null },
+            { label: 'Mới', family: compiledRegistered ? compiledFamilyName : null }
+          ].map((row) => (
+            <div key={row.label} className="flex items-center gap-2 bg-white rounded-md border border-neutral-200/70 px-2 overflow-hidden">
+              <span className="w-7 shrink-0 text-[10px] font-bold text-neutral-400">{row.label}</span>
+              <span
+                className="whitespace-nowrap text-neutral-900 leading-tight py-1"
+                style={{
+                  fontSize: 34,
+                  fontFamily: row.family ? `"${row.family}", sans-serif` : 'sans-serif',
+                  fontKerning: 'normal',
+                  fontFeatureSettings: '"kern" 1'
+                }}
+              >
+                {pairContext(selectedPair.left, selectedPair.right)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Live Canvas Comparison Area */}
       <div className="flex-1 overflow-y-auto rounded-xl">
         {previewMode === 'overlay' ? (
@@ -264,7 +311,7 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
               </span>
               <span className="flex items-center gap-1.5 text-cyan-500 dark:text-cyan-400">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 dark:bg-cyan-400 inline-block" />
-                Xanh Lam: Sau Auto Kerning
+                Xanh Lam: Font mới
               </span>
             </div>
 
@@ -278,8 +325,8 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
                     originalRegistered && originalFamilyName
                       ? `"${originalFamilyName}", sans-serif`
                       : 'sans-serif',
-                  fontKerning: 'none',
-                  fontFeatureSettings: '"kern" 0',
+                  fontKerning: 'normal',
+                  fontFeatureSettings: '"kern" 1',
                   color: canvasTheme === 'dark' ? 'rgba(244, 63, 94, 0.75)' : 'rgba(225, 29, 72, 0.7)',
                   fontWeight: 400,
                   fontSynthesis: 'none',
@@ -339,7 +386,7 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
                 <div className="h-7 shrink-0 flex justify-between items-center text-[10px] font-bold uppercase tracking-wider border-b border-neutral-200/40 kerning-header-bar">
                   <span className="text-rose-500 flex items-center gap-1 font-mono">
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    1. Gốc (Chưa Kerning)
+                    1. Font gốc
                   </span>
 
                   <span className="font-mono text-[9px] text-neutral-400 kerning-meta-family">
@@ -355,8 +402,8 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
                       originalRegistered && originalFamilyName
                         ? `"${originalFamilyName}", sans-serif`
                         : 'sans-serif',
-                    fontKerning: 'none',
-                    fontFeatureSettings: '"kern" 0',
+                    fontKerning: 'normal',
+                    fontFeatureSettings: '"kern" 1',
                     textAlign,
                     color: canvasTheme === 'dark' ? '#f4f4f5' : '#18181b',
                     fontWeight: 400,
@@ -384,9 +431,7 @@ export const KerningLiveViewMiddle: React.FC<KerningLiveViewMiddleProps> = ({
               <div className="h-7 shrink-0 flex justify-between items-center text-[10px] font-bold uppercase tracking-wider border-b border-neutral-200/40 kerning-header-bar">
                 <span className="text-emerald-500 dark:text-emerald-400 flex items-center gap-1 font-mono">
                   <Check className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
-                  {previewMode === 'single'
-                    ? 'Kết quả Auto Kerning'
-                    : '2. Sau Auto Kerning'}{' '}
+                  {previewMode === 'single' ? 'Font mới' : '2. Font mới'}{' '}
                   ({kerningPairsCount} cặp)
                 </span>
 
