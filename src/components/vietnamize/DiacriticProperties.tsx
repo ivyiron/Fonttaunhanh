@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Switch } from '../Switch';
 import * as opentype from 'opentype.js';
 import {
   Blocks,
@@ -194,241 +195,154 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
   return (
     <div className="flex flex-col space-y-2.5 pb-20 text-neutral-900 dark:text-neutral-100">
       
-      {/* Dấu tiếng Việt gốc trong font - Compact and Informative */}
-      {existingGlyphInfo && (
-        <div className="p-2.5 bg-neutral-50 dark:bg-[#1e1e26] rounded-lg border border-neutral-200/90 dark:border-[#353545] text-xs shrink-0 space-y-2">
-          <div className="flex items-center justify-between gap-2 text-[11px] text-neutral-600 dark:text-neutral-300">
-            {/* Thông tin bên trái */}
-            <span className="min-w-0 truncate">
-              {existingGlyphInfo.count > 0 ? (
-                <>
-                  Font gốc đã có ·{' '}
-                  <span
-                    className="font-mono text-neutral-800 dark:text-neutral-100"
-                    title={existingGlyphInfo.samples.join(', ')}
-                  >
-                    {existingGlyphInfo.samples.slice(0, 10).join(', ')}
-                    {existingGlyphInfo.samples.length > 10 && '…'}
-                  </span>
-                </>
-              ) : (
-                'Chưa có ký tự tiếng Việt có dấu'
-              )}
-            </span>
+      {/* Selected mark: name, actions, upper/lower variant, SVG path */}
+      <div className="p-2.5 bg-neutral-50 dark:bg-[#1e1e26] rounded-lg border border-neutral-200 dark:border-[#353545] space-y-2.5">
+        {/* Title & Quick Actions */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">
+            {(template?.name || activeDiaId).replace(/\s*\(.*\)\s*$/, '')}
+          </span>
 
-            {/* Số lượng bên phải */}
-            <span
-              className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md font-mono font-bold ${
-                existingGlyphInfo.count > 0
-                  ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400'
-              }`}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleExtractFromFont}
+              className="px-2 py-1 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 text-amber-950 dark:text-amber-300 border border-transparent dark:border-amber-500/30 rounded-md transition cursor-pointer flex items-center gap-1"
+              title="Bóc tách tự động từ font"
             >
-              {existingGlyphInfo.count}/{existingGlyphInfo.total}
-            </span>
+              <Blocks className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+              Bóc tách
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReset}
+              className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-amber-300 hover:bg-neutral-100 dark:hover:bg-[#2c2c3a] rounded-lg transition cursor-pointer"
+              title="Đặt lại nét và kích thước mặc định"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Uppercase specific variant toggle box */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center justify-between w-full cursor-pointer select-none">
+              <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 hover:text-neutral-950 dark:hover:text-white">
+                Chữ HOA khác chữ thường
+              </span>
+              <div className="relative inline-flex items-center shrink-0">
+                <input
+                  type="checkbox"
+                  checked={!!template?.hasCapVariant}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    onUpdateTemplate(activeDiaId, {
+                      hasCapVariant: enabled,
+                      capSvgPath: enabled ? (template.capSvgPath || template.svgPath) : undefined,
+                      capScaleX: enabled ? (template.capScaleX ?? template.scaleX ?? 1.0) : undefined,
+                      capScaleY: enabled ? (template.capScaleY ?? template.scaleY ?? 1.0) : undefined,
+                      capOffsetX: enabled ? (template.capOffsetX ?? template.offsetX ?? 0) : undefined,
+                      capOffsetY: enabled ? (template.capOffsetY ?? template.offsetY ?? 0) : undefined,
+                      capAutoCenterX: enabled ? (template.capAutoCenterX ?? template.autoCenterX ?? true) : undefined
+                    });
+                    if (enabled) {
+                      setEditingCap(true);
+                    } else {
+                      setEditingCap(false);
+                    }
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-neutral-300 dark:bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neutral-900 dark:peer-checked:bg-amber-500"></div>
+              </div>
+            </label>
           </div>
 
-          {/* Toggle: chỉ hiện khi font gốc có ký tự */}
-          {existingGlyphInfo.count > 0 && onTogglePreserveExisting && (
-            <div className="pt-2 border-t border-neutral-200/70 dark:border-[#353545]">
-              <label className="flex items-center justify-between w-full cursor-pointer select-none group/toggle">
-                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover/toggle:text-neutral-950 dark:group-hover/toggle:text-white">
-                  Giữ lại các ký tự tiếng Việt đã có
-                </span>
-                <div className="relative inline-flex items-center shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={preserveExistingGlyphs}
-                    onChange={(e) => onTogglePreserveExisting(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-neutral-300 dark:bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neutral-900 dark:peer-checked:bg-amber-500"></div>
-                </div>
-              </label>
-              {preserveExistingGlyphs && onSetRegenerateChars && nativeChars.length > 0 && (
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Giữ {nativeChars.length - regenerateChars.length} · Làm mới {regenerateChars.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setKeepDialogOpen(true)}
-                    className="px-2 py-1 text-[11px] font-bold rounded-md border border-neutral-200 dark:border-[#3e3e50] bg-white dark:bg-[#282834] hover:border-neutral-400 cursor-pointer"
-                  >
-                    Chọn ký tự
-                  </button>
-                </div>
-              )}
+          {template?.hasCapVariant ? (
+            <div>
+              {/* Toggle chuyển qua lại edit thông số Chữ thường / Chữ HOA */}
+              <div className="flex bg-neutral-200/80 dark:bg-[#282834] p-0.5 rounded-lg text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setEditingCap(false)}
+                  className={`flex-1 py-1 px-2 rounded-md transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    !isCapVariantActive
+                      ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 shadow-2xs font-extrabold'
+                      : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                  }`}
+                >
+                  <span>Chữ thường</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingCap(true)}
+                  className={`flex-1 py-1 px-2 rounded-md transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    isCapVariantActive
+                      ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 shadow-2xs font-extrabold'
+                      : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                  }`}
+                >
+                  <span>Chữ HOA</span>
+                </button>
+              </div>
+
+            </div>
+          ) : null}
+        </div>
+
+        {/* Vector Path Input */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-1 flex-wrap">
+            {/* 2 nút bên trái */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleCopySvgTag}
+                disabled={!currentSvgPath}
+                className="text-[10px] font-bold text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-[#282834] hover:bg-neutral-100 dark:hover:bg-[#323242] border border-neutral-200 dark:border-[#3e3e50] px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer disabled:opacity-40 shadow-2xs"
+                title="Copy toàn bộ thẻ <svg>...</svg> của dấu này"
+              >
+                <Code2 className="w-2.5 h-2.5 text-neutral-600 dark:text-amber-400" />
+                <span>Copy thẻ SVG</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCopySvgPath}
+                disabled={!currentSvgPath}
+                className="text-[10px] font-bold text-neutral-600 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-[#282834] hover:bg-neutral-100 dark:hover:bg-[#323242] border border-neutral-200 dark:border-[#3e3e50] px-1.5 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer disabled:opacity-40 shadow-2xs"
+                title="Copy chuỗi d='...' của dấu này"
+              >
+                <Copy className="w-2.5 h-2.5 text-neutral-500 dark:text-amber-400" />
+                <span>Copy path</span>
+              </button>
+            </div>
+
+            {/* Label bên phải */}
+            <label className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer flex items-center gap-1 ml-0.5">
+              <Upload className="w-2.5 h-2.5" />
+              Tải lên SVG
+              <input type="file" accept=".svg" onChange={handleFileUpload} className="hidden" />
+            </label>
+          </div>
+          <textarea
+            rows={7}
+            value={currentSvgPath}
+            onChange={(e) => updateActiveValues({ svgPath: extractPathDataFromSvg(e.target.value) })}
+            placeholder="M 10 20 L 30 50..."
+            className="w-full text-[10px] font-mono p-1.5 bg-neutral-50 dark:bg-[#181822] border border-neutral-200 dark:border-[#353545] rounded-lg focus:outline-hidden focus:border-neutral-900 dark:focus:border-amber-400 transition resize-none text-neutral-900 dark:text-neutral-100"
+          />
+          {statusMsg && (
+            <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
+              <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span>{statusMsg}</span>
             </div>
           )}
         </div>
-      )}
 
-      {onSetRegenerateChars && (
-        <KeepCharsDialog
-          open={keepDialogOpen}
-          nativeChars={nativeChars}
-          regenerateChars={regenerateChars}
-          onChange={onSetRegenerateChars}
-          onClose={() => setKeepDialogOpen(false)}
-        />
-      )}
-
-      {/* Uppercase specific variant toggle box */}
-      <div className="p-2.5 bg-neutral-50/90 dark:bg-[#1e1e26] rounded-xl border border-neutral-200/80 dark:border-[#353545] space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="flex items-center justify-between w-full cursor-pointer select-none">
-            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 hover:text-neutral-950 dark:hover:text-white">
-              Chữ HOA khác chữ thường
-            </span>
-            <div className="relative inline-flex items-center shrink-0">
-              <input
-                type="checkbox"
-                checked={!!template?.hasCapVariant}
-                onChange={(e) => {
-                  const enabled = e.target.checked;
-                  onUpdateTemplate(activeDiaId, {
-                    hasCapVariant: enabled,
-                    capSvgPath: enabled ? (template.capSvgPath || template.svgPath) : undefined,
-                    capScaleX: enabled ? (template.capScaleX ?? template.scaleX ?? 1.0) : undefined,
-                    capScaleY: enabled ? (template.capScaleY ?? template.scaleY ?? 1.0) : undefined,
-                    capOffsetX: enabled ? (template.capOffsetX ?? template.offsetX ?? 0) : undefined,
-                    capOffsetY: enabled ? (template.capOffsetY ?? template.offsetY ?? 0) : undefined,
-                    capAutoCenterX: enabled ? (template.capAutoCenterX ?? template.autoCenterX ?? true) : undefined
-                  });
-                  if (enabled) {
-                    setEditingCap(true);
-                  } else {
-                    setEditingCap(false);
-                  }
-                }}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-neutral-300 dark:bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neutral-900 dark:peer-checked:bg-amber-500"></div>
-            </div>
-          </label>
-        </div>
-
-        {template?.hasCapVariant ? (
-          <div className="pt-1.5 space-y-1.5 border-t border-neutral-200/70 dark:border-[#353545]">
-            {/* Toggle chuyển qua lại edit thông số Chữ thường / Chữ HOA */}
-            <div className="flex bg-neutral-200/80 dark:bg-[#282834] p-0.5 rounded-lg text-[11px] font-bold">
-              <button
-                type="button"
-                onClick={() => setEditingCap(false)}
-                className={`flex-1 py-1 px-2 rounded-md transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                  !isCapVariantActive
-                    ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 shadow-2xs font-extrabold'
-                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-                }`}
-              >
-                <span>Chữ thường</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditingCap(true)}
-                className={`flex-1 py-1 px-2 rounded-md transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                  isCapVariantActive
-                    ? 'bg-white dark:bg-amber-500 text-neutral-950 dark:text-neutral-950 shadow-2xs font-extrabold'
-                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-                }`}
-              >
-                <span>Chữ HOA</span>
-              </button>
-            </div>
-
-            <div className="flex items-center text-[10px] px-0.5 text-neutral-500 dark:text-neutral-400">
-               <span className="font-semibold text-neutral-700 dark:text-neutral-300">
-                {isCapVariantActive ? 'Cấu hình thông số cho chữ HOA (Á, Â, Ơ, Ư, Đ...)' : 'Cấu hình thông số cho chữ thường (á, â, ơ, ư, đ...)'}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight">
-            Mặc định dùng chung một thiết kế dấu và tỷ lệ cho cả chữ thường lẫn chữ hoa.
-          </p>
-        )}
       </div>
 
-      {/* Vector Path Input */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between gap-1 flex-wrap">
-          {/* 2 nút bên trái */}
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleCopySvgTag}
-              disabled={!currentSvgPath}
-              className="text-[10px] font-bold text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-[#282834] hover:bg-neutral-100 dark:hover:bg-[#323242] border border-neutral-200 dark:border-[#3e3e50] px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer disabled:opacity-40 shadow-2xs"
-              title="Copy toàn bộ thẻ <svg>...</svg> của dấu này"
-            >
-              <Code2 className="w-2.5 h-2.5 text-neutral-600 dark:text-amber-400" />
-              <span>Copy thẻ SVG</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleCopySvgPath}
-              disabled={!currentSvgPath}
-              className="text-[10px] font-bold text-neutral-600 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-[#282834] hover:bg-neutral-100 dark:hover:bg-[#323242] border border-neutral-200 dark:border-[#3e3e50] px-1.5 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer disabled:opacity-40 shadow-2xs"
-              title="Copy chuỗi d='...' của dấu này"
-            >
-              <Copy className="w-2.5 h-2.5 text-neutral-500 dark:text-amber-400" />
-              <span>Copy path</span>
-            </button>
-          </div>
-
-          {/* Label bên phải */}
-          <label className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer flex items-center gap-1 ml-0.5">
-            <Upload className="w-2.5 h-2.5" />
-            Tải lên SVG
-            <input type="file" accept=".svg" onChange={handleFileUpload} className="hidden" />
-          </label>
-        </div>
-        <textarea
-          rows={5}
-          value={currentSvgPath}
-          onChange={(e) => updateActiveValues({ svgPath: extractPathDataFromSvg(e.target.value) })}
-          placeholder="M 10 20 L 30 50..."
-          className="w-full text-[10px] font-mono p-1.5 bg-neutral-50 dark:bg-[#181822] border border-neutral-200 dark:border-[#353545] rounded-lg focus:outline-hidden focus:border-neutral-900 dark:focus:border-amber-400 transition resize-none text-neutral-900 dark:text-neutral-100"
-        />
-        {statusMsg && (
-          <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-            <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-            <span>{statusMsg}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Title & Quick Actions */}
-      <div className="flex items-center justify-between border-b border-neutral-100 dark:border-[#2f2f3e] pb-2">
-        <div>
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">
-            Mã SVG cho {template?.name || activeDiaId} {template?.hasCapVariant ? (isCapVariantActive ? '(Chữ HOA)' : '(Chữ thường)') : ''}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={handleExtractFromFont}
-            className="px-2 py-1 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 text-amber-950 dark:text-amber-300 border border-transparent dark:border-amber-500/30 rounded-md transition cursor-pointer flex items-center gap-1"
-            title="Bóc tách tự động từ font"
-          >
-            <Blocks className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-            Bóc tách
-          </button>
-
-          <button
-            type="button"
-            onClick={handleReset}
-            className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-amber-300 hover:bg-neutral-100 dark:hover:bg-[#2c2c3a] rounded-lg transition cursor-pointer"
-            title="Đặt lại nét và kích thước mặc định"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-      
       {/* Scale Controls - Compact 2-Column Grid */}
       <div className="space-y-2 bg-neutral-50/70 dark:bg-[#1e1e26] p-2.5 rounded-xl border border-neutral-200/80 dark:border-[#353545]">
         <div className="flex items-center justify-between">
@@ -534,13 +448,8 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
             <span>Độ dày nét</span>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5 text-[10px] font-bold text-neutral-600 dark:text-neutral-300 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={currentKeepWeight}
-                  onChange={(e) => updateActiveValues({ keepWeight: e.target.checked })}
-                  className="w-3.5 h-3.5 accent-neutral-900 dark:accent-amber-500 rounded cursor-pointer"
-                />
                 <span>Giữ độ đậm khi co</span>
+                <Switch small checked={currentKeepWeight} onChange={(on) => updateActiveValues({ keepWeight: on })} />
               </label>
               <NumericInput
                 size="sm"
@@ -570,13 +479,8 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Vị Trí Dấu</span>
           <label className="flex items-center gap-1.5 text-[10px] font-bold text-neutral-600 dark:text-neutral-300 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={currentAutoCenterX}
-              onChange={(e) => updateActiveValues({ autoCenterX: e.target.checked })}
-              className="w-3.5 h-3.5 accent-neutral-900 dark:accent-amber-500 rounded cursor-pointer"
-            />
             <span>Căn giữa X tự động</span>
+            <Switch small checked={currentAutoCenterX} onChange={(on) => updateActiveValues({ autoCenterX: on })} />
           </label>
         </div>
 
@@ -743,6 +647,86 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
           </div>
         )}
       </div>
+      {/* Font level: Vietnamese letters the font already has, keep / regenerate */}
+      {existingGlyphInfo && (
+        <div className="p-2.5 bg-neutral-50 dark:bg-[#1e1e26] rounded-lg border border-neutral-200/90 dark:border-[#353545] text-xs shrink-0 space-y-2">
+          <div className="flex items-center justify-between gap-2 text-[11px] text-neutral-600 dark:text-neutral-300">
+            {/* Thông tin bên trái */}
+            <span className="min-w-0 truncate">
+              {existingGlyphInfo.count > 0 ? (
+                <>
+                  Font gốc đã có ·{' '}
+                  <span
+                    className="font-mono text-neutral-800 dark:text-neutral-100"
+                    title={existingGlyphInfo.samples.join(', ')}
+                  >
+                    {existingGlyphInfo.samples.slice(0, 10).join(', ')}
+                    {existingGlyphInfo.samples.length > 10 && '…'}
+                  </span>
+                </>
+              ) : (
+                'Chưa có ký tự tiếng Việt có dấu'
+              )}
+            </span>
+
+            {/* Số lượng bên phải */}
+            <span
+              className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md font-mono font-bold ${
+                existingGlyphInfo.count > 0
+                  ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400'
+              }`}
+            >
+              {existingGlyphInfo.count}/{existingGlyphInfo.total}
+            </span>
+          </div>
+
+          {/* Toggle: chỉ hiện khi font gốc có ký tự */}
+          {existingGlyphInfo.count > 0 && onTogglePreserveExisting && (
+            <div className="pt-2 border-t border-neutral-200/70 dark:border-[#353545]">
+              <label className="flex items-center justify-between w-full cursor-pointer select-none group/toggle">
+                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover/toggle:text-neutral-950 dark:group-hover/toggle:text-white">
+                  Giữ lại các ký tự tiếng Việt đã có
+                </span>
+                <div className="relative inline-flex items-center shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={preserveExistingGlyphs}
+                    onChange={(e) => onTogglePreserveExisting(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-neutral-300 dark:bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neutral-900 dark:peer-checked:bg-amber-500"></div>
+                </div>
+              </label>
+              {preserveExistingGlyphs && onSetRegenerateChars && nativeChars.length > 0 && (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Giữ {nativeChars.length - regenerateChars.length} · Làm mới {regenerateChars.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setKeepDialogOpen(true)}
+                    className="px-2 py-1 text-[11px] font-bold rounded-md border border-neutral-200 dark:border-[#3e3e50] bg-white dark:bg-[#282834] hover:border-neutral-400 cursor-pointer"
+                  >
+                    Chọn ký tự
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {onSetRegenerateChars && (
+        <KeepCharsDialog
+          open={keepDialogOpen}
+          nativeChars={nativeChars}
+          regenerateChars={regenerateChars}
+          onChange={onSetRegenerateChars}
+          onClose={() => setKeepDialogOpen(false)}
+        />
+      )}
+
     </div>
   );
 };

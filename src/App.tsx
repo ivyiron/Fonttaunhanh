@@ -93,7 +93,11 @@ export default function App() {
   const [kerningSettings, setKerningSettings] = useState<AutoKerningSettings>(DEFAULT_KERNING_SETTINGS);
   // Auto kerning / auto spacing belong to the Kerning tool. They run on export only after the user has
   // entered that tool (and passed its warning). Inheriting kerning for new Vietnamese glyphs always runs.
+  // Kerning tàu nhanh: two separate "apply on export" switches. Both turn on the first time the
+  // user opens that tab; after that only the user changes them.
   const [autoKerningActive, setAutoKerningActive] = useState<boolean>(false);
+  const [autoSpacingActive, setAutoSpacingActive] = useState<boolean>(false);
+  const [kerningToolVisited, setKerningToolVisited] = useState<boolean>(false);
 
   // Existing Vietnamese glyph preservation
   const [preserveExistingGlyphs, setPreserveExistingGlyphs] = useState<boolean>(true);
@@ -231,6 +235,8 @@ export default function App() {
           skipVietnamize: skipVietnamize,
           saveSessionEnabled: saveSessionEnabled,
           autoKerningActive: autoKerningActive,
+          autoSpacingActive: autoSpacingActive,
+          kerningToolVisited: kerningToolVisited,
           templateUnits: 1000
         };
         saveSessionToIndexedDB(sessionPayload);
@@ -256,7 +262,9 @@ export default function App() {
     kerningSettings,
     customGlyphDesigns,
     skipVietnamize,
-    autoKerningActive
+    autoKerningActive,
+    autoSpacingActive,
+    kerningToolVisited
   ]);
 
   // Auto-dismiss success notification
@@ -284,6 +292,8 @@ export default function App() {
     (loadedFont: opentype.Font, nameOfFile: string, meta: FontMetadata, rawBuffer: ArrayBuffer) => {
       ensureKerningPairsPopulated(loadedFont);
       setAutoKerningActive(false);
+      setAutoSpacingActive(false);
+      setKerningToolVisited(false);
       setOriginalFont(loadedFont);
       setRawFontBuffer(rawBuffer);
       setFilename(nameOfFile);
@@ -799,7 +809,7 @@ export default function App() {
 
         // Auto spacing + auto kerning (Kerning tàu nhanh). Only after the user has opened that tool:
         // both rewrite the original font's spacing and pairs, so they must never run on their own.
-        if (autoKerningActive) {
+        if (autoSpacingActive) {
           const autoSpacingMap = calculateAutoSpacingAdjustments(font, spacingRules);
           for (let i = 0; i < font.glyphs.length; i++) {
             const g = font.glyphs.get(i);
@@ -810,7 +820,8 @@ export default function App() {
               }
             }
           }
-
+        }
+        if (autoKerningActive) {
           const autoKerningPairs = generateFullFontKerningPairs(font, kerningSettings);
           autoKerningPairs.forEach((pair) => {
             pairs[`${pair.indexLeft},${pair.indexRight}`] = pair.value;
@@ -943,8 +954,6 @@ export default function App() {
           URL.revokeObjectURL(url);
 
           setAppSuccess('Đã xuất bản và tải xuống font thành công!');
-        } else {
-          setAppSuccess('Đã đồng bộ hóa thành công 134 ký tự tiếng Việt có dấu & Kerning!');
         }
       } catch (err: any) {
         console.error(err);
@@ -966,18 +975,22 @@ export default function App() {
       spacingRules,
       kerningSettings,
       customGlyphDesigns,
-      autoKerningActive
+      autoKerningActive,
+      autoSpacingActive,
+      kerningToolVisited
     ]
   );
 
-  // Auto-sync & recompile font preview when kerning settings or spacing rules change
+  // Rebuild the preview font whenever anything that goes into it changes (marks, rules, per-letter
+  // tweaks, edits, kerning). handleCompileFont is rebuilt from exactly those inputs, so it is the
+  // dependency. Debounced so dragging a slider compiles once at the end.
   useEffect(() => {
     if (!originalFont || !rawFontBuffer) return;
     const timer = setTimeout(() => {
       handleCompileFont(false);
-    }, 350);
+    }, 450);
     return () => clearTimeout(timer);
-  }, [spacingRules, kerningSettings, originalFont, rawFontBuffer, handleCompileFont]);
+  }, [originalFont, rawFontBuffer, handleCompileFont]);
 
   // Project Save Handler (.ftn)
   const handleSaveProject = useCallback(() => {
@@ -1013,6 +1026,8 @@ export default function App() {
         skipVietnamize: skipVietnamize,
         saveSessionEnabled: saveSessionEnabled,
         autoKerningActive: autoKerningActive,
+        autoSpacingActive: autoSpacingActive,
+        kerningToolVisited: kerningToolVisited,
         templateUnits: 1000
       };
 
@@ -1052,7 +1067,10 @@ export default function App() {
     kerningSettings,
     customGlyphDesigns,
     skipVietnamize,
-    saveSessionEnabled
+    saveSessionEnabled,
+    autoKerningActive,
+    autoSpacingActive,
+    kerningToolVisited
   ]);
 
   // Project Load Handler (.ftn)
@@ -1143,7 +1161,10 @@ export default function App() {
           ...projectData.spacingRules
         });
       }
+      // Files saved before the split had one flag for both.
       setAutoKerningActive(!!projectData.autoKerningActive);
+      setAutoSpacingActive(projectData.autoSpacingActive ?? !!projectData.autoKerningActive);
+      setKerningToolVisited(projectData.kerningToolVisited ?? !!projectData.autoKerningActive);
       if (projectData.kerningSettings) {
         setKerningSettings({
           ...DEFAULT_KERNING_SETTINGS,
@@ -1295,7 +1316,16 @@ export default function App() {
           onSaveProject={handleSaveProject}
           onLoadProject={handleLoadProjectData}
           onUploadNewFont={handleReset}
-          onActivateAutoKerning={() => setAutoKerningActive(true)}
+          onActivateAutoKerning={() => {
+            if (kerningToolVisited) return;
+            setKerningToolVisited(true);
+            setAutoKerningActive(true);
+            setAutoSpacingActive(true);
+          }}
+          autoSpacingActive={autoSpacingActive}
+          autoKerningActive={autoKerningActive}
+          onSetAutoSpacingActive={setAutoSpacingActive}
+          onSetAutoKerningActive={setAutoKerningActive}
         />
       ) : (
         <div className="relative h-full w-full overflow-hidden select-none">

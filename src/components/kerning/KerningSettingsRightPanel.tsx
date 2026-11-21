@@ -2,12 +2,12 @@ import React from 'react';
 import {
   SlidersHorizontal,
   Sparkles,
-  RefreshCw,
   Zap,
   Info
 } from 'lucide-react';
 import { AutoSpacingRules, AutoKerningSettings, FontMetadata } from '../../types';
 import { NumericInput } from '../NumericInput';
+import { Switch } from '../Switch';
 
 interface KerningSettingsRightPanelProps {
   fontMetadata: FontMetadata | null;
@@ -19,7 +19,26 @@ interface KerningSettingsRightPanelProps {
   onUpdateKerningSettings: (settings: Partial<AutoKerningSettings>) => void;
   onCompileFont: () => void;
   compiling: boolean;
+  autoSpacingActive: boolean;
+  autoKerningActive: boolean;
+  onSetAutoSpacingActive: (on: boolean) => void;
+  onSetAutoKerningActive: (on: boolean) => void;
 }
+
+// Block title with the "apply on export" switch. Off = the block's settings are kept but not used.
+const BlockHeader: React.FC<{ title: string; on: boolean; onChange: (on: boolean) => void }> = ({
+  title,
+  on,
+  onChange
+}) => (
+  <label className="flex items-center justify-between border-b border-neutral-200/60 pb-1 cursor-pointer">
+    <h4 className="text-xs font-bold text-neutral-900">{title}</h4>
+    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-neutral-500">
+      Áp khi xuất
+      <Switch checked={on} onChange={onChange} />
+    </span>
+  </label>
+);
 
 export const KerningSettingsRightPanel: React.FC<KerningSettingsRightPanelProps> = ({
   fontMetadata,
@@ -29,8 +48,10 @@ export const KerningSettingsRightPanel: React.FC<KerningSettingsRightPanelProps>
   kerningSettings,
   onUpdateSpacingRules,
   onUpdateKerningSettings,
-  onCompileFont,
-  compiling
+  autoSpacingActive,
+  autoKerningActive,
+  onSetAutoSpacingActive,
+  onSetAutoKerningActive
 }) => {
   return (
     <div className="flex flex-col space-y-3 pb-20 text-neutral-900">
@@ -59,21 +80,10 @@ export const KerningSettingsRightPanel: React.FC<KerningSettingsRightPanelProps>
         </div>
       </div>
 
-       <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 space-y-1">
-        <div className="flex items-start gap-1.5 text-[11px]">
-          <Info className="w-4.5 h-4.5 text-amber-700" />
-          <span>Lưu ý: Kerning sẽ chỉ tác động lên font ở tab này. Nếu muốn export font với kerning đã thiết lập hãy export khi đang mở tap.</span>
-        </div>
-      </div>
-
       {/* SECTION 1: AUTO SPACING (SIDEBEARINGS) */}
       <div className="bg-neutral-50/90 border border-neutral-200/90 p-2.5 rounded-lg space-y-2.5">
-        <div className="flex items-center gap-1.5 border-b border-neutral-200/60 pb-1">
-          
-          <h4 className="text-xs font-bold text-neutral-900">
-            Auto spacing
-          </h4>
-        </div>
+        <BlockHeader title="Auto spacing" on={autoSpacingActive} onChange={onSetAutoSpacingActive} />
+        <div className={`space-y-2.5 transition ${autoSpacingActive ? '' : 'opacity-40 pointer-events-none'}`}>
 
         {/* Spacing Presets */}
         <div className="space-y-1">
@@ -154,15 +164,13 @@ export const KerningSettingsRightPanel: React.FC<KerningSettingsRightPanelProps>
             />
           </div>
         </div>
+        </div>
       </div>
 
       {/* SECTION 2: AUTO KERNING */}
       <div className="bg-neutral-50/90 border border-neutral-200/90 p-2.5 rounded-lg space-y-2.5">
-        <div className="flex items-center gap-1.5 border-b border-neutral-200/60 pb-1">
-          <h4 className="text-xs font-bold text-neutral-900">
-            Auto kerning
-          </h4>
-        </div>
+        <BlockHeader title="Auto kerning" on={autoKerningActive} onChange={onSetAutoKerningActive} />
+        <div className={`space-y-2.5 transition ${autoKerningActive ? '' : 'opacity-40 pointer-events-none'}`}>
 
         {/* 2-Column Grid for Kerning Multiplier & Threshold */}
         <div className="grid grid-cols-2 gap-2">
@@ -259,20 +267,9 @@ export const KerningSettingsRightPanel: React.FC<KerningSettingsRightPanelProps>
             <span className="truncate">Dấu câu (A., T.)</span>
           </label>
         </div>
+        </div>
       </div>
 
-      {/* Sync Action Button */}
-      <div className="pt-1">
-        <button
-          type="button"
-          onClick={onCompileFont}
-          disabled={compiling}
-          className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition shadow-xs cursor-pointer disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${compiling ? 'animate-spin' : ''}`} />
-          <span>Rekerning</span>
-        </button>
-      </div>
     </div>
   );
 };

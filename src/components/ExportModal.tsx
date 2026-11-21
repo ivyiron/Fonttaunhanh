@@ -1,10 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import * as opentype from 'opentype.js';
 import {
   X,
   Download,
-  FolderDown,
-  FolderOpen,
   Sliders,
   CheckCircle2,
   FileCheck,
@@ -27,8 +25,9 @@ interface ExportModalProps {
   onCompileFont: () => void;
   compiling: boolean;
   onDownloadFont: (format: 'ttf' | 'woff2' | 'otf') => void;
-  onSaveProject: () => void;
-  onLoadProject: (project: VietnameseProjectFile) => void;
+  // Project save/open moved to the header's project menu; kept optional for callers.
+  onSaveProject?: () => void;
+  onLoadProject?: (project: VietnameseProjectFile) => void;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -44,12 +43,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onSetCustomSubfamilyName,
   onCompileFont,
   compiling,
-  onDownloadFont,
-  onSaveProject,
-  onLoadProject
+  onDownloadFont
 }) => {
   const [selectedFormat, setSelectedFormat] = useState<'otf' | 'ttf' | 'woff2'>('otf');
-  const projectInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -58,25 +54,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     /[^a-zA-Z0-9-]/g,
     ''
   );
-
-  const handleProjectFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const projectData = JSON.parse(text) as VietnameseProjectFile;
-        onLoadProject(projectData);
-        onClose();
-      } catch (err: any) {
-        console.error('Lỗi khi đọc file dự án:', err);
-      }
-    };
-    reader.readAsText(file);
-    if (projectInputRef.current) projectInputRef.current.value = '';
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/60 backdrop-blur-xs animate-fade-in">
@@ -95,10 +72,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         <div className="flex items-start gap-3 pr-8">
           <div>
             <h3 className="text-base font-black text-neutral-950 dark:text-white tracking-tight">
-              Lưu Dự Án & Xuất Bản Font
+              Xuất font
             </h3>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Lưu dự án (.ftn) hoặc xuất file font (.otf, .ttf, .woff2).
+              Đặt tên và chọn định dạng (.otf, .ttf, .woff2).
             </p>
           </div>
         </div>
@@ -181,38 +158,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-100 dark:border-[#2e2e3e]">
-          {/* Project load/save group */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                onSaveProject();
-                onClose();
-              }}
-              className="flex-1 sm:flex-none px-3.5 py-2 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-500/40 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
-              title="Lưu file cấu hình (.ftn) để mở lại sau này"
-            >
-              <FolderDown className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Lưu Dự Án (.ftn)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => projectInputRef.current?.click()}
-              className="flex-1 sm:flex-none px-3.5 py-2 text-xs font-bold text-neutral-700 dark:text-neutral-200 bg-neutral-100 dark:bg-[#262634] hover:bg-neutral-200 dark:hover:bg-[#323244] border border-neutral-200 dark:border-[#3a3a4c] rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
-              title="Mở lại file dự án .ftn đã lưu"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300" />
-              <span>Mở Dự Án</span>
-            </button>
-            <input
-              ref={projectInputRef}
-              type="file"
-              accept=".ftn,application/json"
-              onChange={handleProjectFileChange}
-              className="hidden"
-            />
-          </div>
+          <div />
 
           {/* Export Font Button */}
           <div className="w-full sm:w-auto flex items-center gap-2">

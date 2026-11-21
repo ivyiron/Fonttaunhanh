@@ -167,6 +167,8 @@ export interface VietnameseProjectFile {
   saveSessionEnabled?: boolean;
   // true once the user has opened Kerning tàu nhanh; until then export never generates kerning/spacing
   autoKerningActive?: boolean;
+  autoSpacingActive?: boolean;
+  kerningToolVisited?: boolean;
   // 1000: mark templates are in a 1000-unit space and drawn at the font's UPM. Missing in files
   // saved before that change, whose template sizes were tuned in raw font units.
   templateUnits?: number;

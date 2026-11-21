@@ -76,6 +76,10 @@ interface StudioLayoutProps {
   onLoadProject: (project: VietnameseProjectFile) => void;
   onUploadNewFont: () => void;
   onActivateAutoKerning: () => void;
+  autoSpacingActive: boolean;
+  autoKerningActive: boolean;
+  onSetAutoSpacingActive: (on: boolean) => void;
+  onSetAutoKerningActive: (on: boolean) => void;
 }
 
 export const StudioLayout: React.FC<StudioLayoutProps> = ({
@@ -120,7 +124,11 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
   onSaveProject,
   onLoadProject,
   onUploadNewFont,
-  onActivateAutoKerning
+  onActivateAutoKerning,
+  autoSpacingActive,
+  autoKerningActive,
+  onSetAutoSpacingActive,
+  onSetAutoKerningActive
 }) => {
   const [activeMainTab, setActiveMainTab] = useState<MainTabType>(() => {
     return skipVietnamize ? 'glyph-edit' : 'vietnamize';
@@ -195,6 +203,8 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
         onCompileFont={onCompileFont}
         compiling={compiling}
         onOpenExport={() => setShowExportModal(true)}
+        onSaveProject={onSaveProject}
+        onLoadProject={onLoadProject}
         isDarkMode={isDarkMode}
         onToggleTheme={onToggleTheme}
         skipVietnamize={skipVietnamize}
@@ -315,6 +325,10 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
               onUpdateKerningSettings={onUpdateKerningSettings}
               onCompileFont={onCompileFont}
               compiling={compiling}
+              autoSpacingActive={autoSpacingActive}
+              autoKerningActive={autoKerningActive}
+              onSetAutoSpacingActive={onSetAutoSpacingActive}
+              onSetAutoKerningActive={onSetAutoKerningActive}
             />
           </div>
         )}

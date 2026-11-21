@@ -561,6 +561,18 @@ export const VietnameseLeftPanel: React.FC<VietnameseLeftPanelProps> = ({
             </div>
           )}
 
+          {/* Legend for the cell markers */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[10px] text-neutral-500">
+            {(keptChars?.size || 0) + (regeneratedChars?.length || 0) > 0 && (
+              <>
+                <span className="flex items-center gap-1"><b className="text-[8px] text-neutral-400">gốc</b>bản của font</span>
+                <span className="flex items-center gap-1"><b className="text-amber-600">↻</b>làm mới</span>
+              </>
+            )}
+            <span className="flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-amber-500" />tinh chỉnh</span>
+            <span className="flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-emerald-500" />đã duyệt</span>
+          </div>
+
           {/* 134 Glyphs Grid */}
           <div className="flex-1 overflow-y-auto pr-1">
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
