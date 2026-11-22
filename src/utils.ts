@@ -903,11 +903,24 @@ export function unionSvgPaths(d1: string, d2: string): string {
     const united = path1.unite(path2, { insert: false });
     const resultD = united.pathData;
 
+    // Paper.js sometimes returns a broken union when curves touch or run tangent (seen on the
+    // horn of Ơ and the bar of đ): part of the letter disappears. A real union covers the box of
+    // both inputs and has at least the larger input's area; otherwise keep the overlapping outlines.
+    const b1 = path1.bounds, b2 = path2.bounds, bu = united.bounds;
+    const tol = Math.max(2, Math.max(b1.width, b1.height) * 0.01);
+    const coversBox =
+      bu.left <= Math.min(b1.left, b2.left) + tol &&
+      bu.right >= Math.max(b1.right, b2.right) - tol &&
+      bu.top <= Math.min(b1.top, b2.top) + tol &&
+      bu.bottom >= Math.max(b1.bottom, b2.bottom) - tol;
+    const area = (p: any) => Math.abs(p.area || 0);
+    const enoughArea = area(united) >= Math.max(area(path1), area(path2)) * 0.97;
+
     path1.remove();
     path2.remove();
     united.remove();
 
-    if (resultD && resultD.trim().length > 0) {
+    if (resultD && resultD.trim().length > 0 && coversBox && enoughArea) {
       return resultD;
     }
     return d1 + ' ' + d2;
@@ -1696,6 +1709,7 @@ export function injectAdvancedLayoutTables(
 // ============================================================================
 
 import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState, StackMatrix, StackRule, StackRuleSet, StackTone, StackMod } from './types';
+import { skewSvgCommands } from './utils/slant';
 import { strokeWeight, scaleKeepWeight, offsetOutline, outlineBounds, translateCommands, outlineClearance, lowestPointX } from './utils/geometry';
 
 // Default professional vector shapes for 9 Vietnamese diacritics
@@ -1972,6 +1986,20 @@ export function sizePlaceholderTemplates(
   return out;
 }
 
+/** Lean the placeholder marks (not the ones taken from the font) by the font's slant. */
+export function skewPlaceholderTemplates(
+  templates: Record<string, DiacriticTemplate>,
+  extractedIds: Set<string>,
+  angle: number
+): Record<string, DiacriticTemplate> {
+  const out: Record<string, DiacriticTemplate> = { ...templates };
+  Object.keys(out).forEach((id) => {
+    if (extractedIds.has(id) || id === 'bar') return;
+    out[id] = { ...out[id], svgPath: commandsToSvgPathD(skewSvgCommands(parseSvgPath(out[id].svgPath), angle)) };
+  });
+  return out;
+}
+
 export interface StackInfo {
   clearance: number;      // smallest gap between the tone and the circumflex/breve, font units (-1: touching)
   toneStroke: number;     // stroke weight of the tone, font units
@@ -2217,6 +2245,10 @@ export function calculateAutoPosition(
 ): { scaleX: number; scaleY: number; offsetX: number; offsetY: number } {
   const u = unitScale;
   let baseXCenter = (baseBBox.x1 + baseBBox.x2) / 2;
+  // Italic / leaning fonts: the box centre is right only at mid-height of the letter. A mark placed
+  // higher (or lower) moves along the slant: x += tan(angle) * (height above that middle).
+  const slantTan = Math.tan(((rules.slantAngle || 0) * Math.PI) / 180);
+  const midY = (baseBBox.y1 + baseBBox.y2) / 2;
 
   // Optical X centering ONLY for lowercase 'y' (ỵ)
   // Lowercase 'y' has an asymmetric diagonal descender, whereas uppercase 'Y' (Ỵ) is horizontally symmetrical along X.
@@ -2262,12 +2294,14 @@ export function calculateAutoPosition(
     offsetX = baseXCenter - (diaXCenter * scaleX);
     // Position below the baseline/bottom of letter
     offsetY = baseYBottom - (diaBBox.yMax * scaleY) - rules.dotBelowGap;
+    offsetX += slantTan * (offsetY + diaBBox.yMax * scaleY - midY);
   } else if (diaId === 'horn' || diaId === 'horn_o' || diaId === 'horn_u') {
     scaleX = rules.hornScale;
     scaleY = rules.hornScale;
     // Align horn to upper right of vowel
     offsetX = baseBBox.x2 - (diaBBox.xMin * scaleX) - 10 * u + rules.hornOffsetX;
     offsetY = baseYTop - (diaBBox.yMax * scaleY) - 15 * u + rules.hornOffsetY;
+    // no slant shift: the box's right edge is already where the leaning letter's shoulder is
   } else if (diaId === 'bar') {
     scaleX = rules.barScale;
     scaleY = rules.barScale;
@@ -2279,9 +2313,13 @@ export function calculateAutoPosition(
       const stemCenterD = baseBBox.x1 + stemWidth * 0.85;
       offsetX = stemCenterD - (diaXCenter * scaleX) + rules.barOffsetX;
       offsetY = baseBBox.y1 + (baseBBox.y2 - baseBBox.y1) * 0.56 - (diaBBox.yMin * scaleY) + rules.barOffsetY;
+      offsetX += slantTan * (offsetY + ((diaBBox.yMin + diaBBox.yMax) / 2) * scaleY - midY);
     } else {
       offsetX = baseBBox.x2 - (diaBBox.xMin * scaleX) - 80 * u + rules.barOffsetX;
       offsetY = baseBBox.y2 - 130 * u + rules.barOffsetY;
+      // d's right edge is the top of its stem when it leans right, the foot when it leans left
+      const edgeY = slantTan >= 0 ? baseBBox.y2 : baseBBox.y1;
+      offsetX += slantTan * (offsetY + ((diaBBox.yMin + diaBBox.yMax) / 2) * scaleY - edgeY);
     }
   } else {
     // Normal top marks: acute, grave, hook, tilde, circumflex, breve
@@ -2293,9 +2331,13 @@ export function calculateAutoPosition(
       const prevCenterX = (previousPlacedBox.xMin + previousPlacedBox.xMax) / 2;
       offsetX = prevCenterX - (diaXCenter * scaleX);
       offsetY = previousPlacedBox.yMax - (diaBBox.yMin * scaleY) + 20 * u;
+      const prevCenterY = (previousPlacedBox.yMin + previousPlacedBox.yMax) / 2;
+      offsetX += slantTan * (offsetY + ((diaBBox.yMin + diaBBox.yMax) / 2) * scaleY - prevCenterY);
     } else {
       const gap = isCapital ? rules.uppercaseAccentGap : rules.lowercaseAccentGap;
       offsetY = baseYTop - (diaBBox.yMin * scaleY) + gap;
+      // follow the slant up to where the mark meets the letter
+      offsetX += slantTan * (offsetY + diaBBox.yMin * scaleY - midY);
     }
   }
 
@@ -2734,7 +2776,10 @@ export function composeGlyphPath(
         const num = (v: number | undefined) => (v !== undefined && !isNaN(v) ? v : 0);
         const nudgeX = num(o?.offsetX) + num(o?.comp2OffsetX) + (o?.hasCustomDoubleAccent ? num(o?.doubleAccentCustomX) : 0);
         const nudgeY = num(o?.offsetY) + num(o?.comp2OffsetY) + (o?.hasCustomDoubleAccent ? num(o?.doubleAccentCustomY) : 0);
-        tone = translateCommands(tone, mb.cx + (rule.dx / 100) * mb.width - refX + nudgeX, targetY - tb.yMin + nudgeY);
+        // on a slanted font the tone sits along the slant axis through the circumflex/breve
+        const slantTanM = Math.tan(((rules.slantAngle || 0) * Math.PI) / 180);
+        const slantDx = slantTanM * (targetY + tb.height / 2 - (mb.yMin + mb.height / 2));
+        tone = translateCommands(tone, mb.cx + (rule.dx / 100) * mb.width - refX + slantDx + nudgeX, targetY - tb.yMin + nudgeY);
 
         let cl = outlineClearance(tone, matrixModCmds, Math.max(2, 4 * unitScale));
         let lift = 0;
@@ -2742,7 +2787,7 @@ export function composeGlyphPath(
           const target = matrix.minClear * toneStroke;
           for (let i = 0; i < 30 && cl.distance < target - 0.5; i++) {
             const step = cl.distance < 0 ? mb.height * 0.15 : Math.max(target - cl.distance, 1.5);
-            tone = translateCommands(tone, 0, step);
+            tone = translateCommands(tone, slantTanM * step, step);
             lift += step;
             cl = outlineClearance(tone, matrixModCmds, Math.max(2, 4 * unitScale));
           }

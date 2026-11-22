@@ -1,3 +1,4 @@
+import { detectSlant } from './utils/slant';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import * as opentype from 'opentype.js';
 import { FontUploader } from './components/FontUploader';
@@ -28,6 +29,7 @@ import {
   findCandidateGlyph,
   scaleRulesToUpm,
   sizePlaceholderTemplates,
+  skewPlaceholderTemplates,
   extractSvgFromGlyph,
   arrayBufferToBase64,
   base64ToArrayBuffer,
@@ -353,7 +355,11 @@ export default function App() {
         initialTemplates[dia.id] = { ...dia };
       });
       // placeholders for marks the font does not have: same size as the marks taken from the font
-      setTemplates(sizePlaceholderTemplates(loadedFont, initialTemplates, extractedIds));
+      // Italic / leaning fonts: placeholders are drawn upright, lean them like the font.
+      // Marks taken from the font already lean.
+      const slant = detectSlant(loadedFont);
+      const sized = sizePlaceholderTemplates(loadedFont, initialTemplates, extractedIds);
+      setTemplates(slant.angle ? skewPlaceholderTemplates(sized, extractedIds, slant.angle) : sized);
 
       if (existingInfo.count === VIETNAMESE_RECIPES.length) {
         setAppSuccess(
@@ -389,7 +395,12 @@ export default function App() {
       setOverrides(initialOverrides);
       setRegenerateChars([]);
       // defaults are tuned on a 1000-unit em: carry the same proportions to fonts on other UPMs
-      setRules(scaleRulesToUpm(DEFAULT_AUTO_RULES, loadedFont.unitsPerEm || 1000));
+      setRules({
+        ...scaleRulesToUpm(DEFAULT_AUTO_RULES, loadedFont.unitsPerEm || 1000),
+        slantAngle: slant.angle,
+        slantDetected: slant.angle,
+        slantSource: slant.source
+      });
     },
     []
   );
@@ -1135,7 +1146,15 @@ export default function App() {
         setTemplates(mergedTemplates);
       }
       if (projectData.rules) {
-        setRules({ ...DEFAULT_AUTO_RULES, ...projectData.rules });
+        const loaded = { ...DEFAULT_AUTO_RULES, ...projectData.rules };
+        if (loaded.slantDetected === undefined) {
+          // saved before slant support: marks were tuned upright, so only report the slant (off)
+          const slant = detectSlant(font);
+          loaded.slantAngle = 0;
+          loaded.slantDetected = slant.angle;
+          loaded.slantSource = slant.source;
+        }
+        setRules(loaded);
       }
 
       const initialOverrides: Record<string, GlyphOverrideState> = {};

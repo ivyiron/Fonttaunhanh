@@ -14,7 +14,8 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  Code2
+  Code2,
+  Italic
 } from 'lucide-react';
 import { DiacriticTemplate, AutoPositionRules } from '../../types';
 import { NumericInput } from '../NumericInput';
@@ -23,8 +24,11 @@ import {
   DEFAULT_DIACRITICS,
   extractPathDataFromSvg,
   getExtractedDiacriticSvgPathFromChar,
-  formatSvgPathToFullSvg
+  formatSvgPathToFullSvg,
+  parseSvgPath,
+  commandsToSvgPathD
 } from '../../utils';
+import { skewSvgCommands } from '../../utils/slant';
 
 interface DiacriticPropertiesProps {
   font: opentype.Font | null;
@@ -317,6 +321,22 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
                 <Copy className="w-2.5 h-2.5 text-neutral-500 dark:text-amber-400" />
                 <span>Copy path</span>
               </button>
+              {!!rules.slantAngle && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateActiveValues({
+                      svgPath: commandsToSvgPathD(skewSvgCommands(parseSvgPath(currentSvgPath), rules.slantAngle || 0))
+                    })
+                  }
+                  disabled={!currentSvgPath}
+                  className="text-[10px] font-bold text-neutral-600 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-[#282834] hover:bg-neutral-100 dark:hover:bg-[#323242] border border-neutral-200 dark:border-[#3e3e50] px-1.5 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer disabled:opacity-40 shadow-2xs"
+                  title="Nghiêng nét dấu này theo góc của font (dùng cho dấu vẽ đứng)"
+                >
+                  <Italic className="w-2.5 h-2.5 text-neutral-500 dark:text-amber-400" />
+                  <span>Nghiêng {rules.slantAngle}°</span>
+                </button>
+              )}
             </div>
 
             {/* Label bên phải */}
@@ -647,6 +667,40 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
           </div>
         )}
       </div>
+      {/* Font level: slant. Marks follow the slant axis of italic / leaning fonts. */}
+      <div className="p-2.5 bg-neutral-50 dark:bg-[#1e1e26] rounded-lg border border-neutral-200/90 dark:border-[#353545] text-xs shrink-0 space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Độ nghiêng của font</span>
+          <NumericInput
+            value={rules.slantAngle ?? 0}
+            onChange={(v) => onUpdateRules({ slantAngle: Math.max(-35, Math.min(35, v)) })}
+            step={0.5}
+            min={-35}
+            max={35}
+            size="sm"
+            unit="°"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
+          <span>
+            {rules.slantSource === 'declared'
+              ? `Font khai báo ${rules.slantDetected}°`
+              : rules.slantSource === 'measured'
+              ? `Đo trên nét chữ: ${rules.slantDetected}°`
+              : 'Font đứng'}
+          </span>
+          {(rules.slantAngle ?? 0) !== (rules.slantDetected ?? 0) && (
+            <button
+              type="button"
+              onClick={() => onUpdateRules({ slantAngle: rules.slantDetected ?? 0 })}
+              className="font-bold text-neutral-700 dark:text-neutral-200 hover:text-neutral-950 dark:hover:text-white cursor-pointer"
+            >
+              Dùng {rules.slantDetected ?? 0}°
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Font level: Vietnamese letters the font already has, keep / regenerate */}
       {existingGlyphInfo && (
         <div className="p-2.5 bg-neutral-50 dark:bg-[#1e1e26] rounded-lg border border-neutral-200/90 dark:border-[#353545] text-xs shrink-0 space-y-2">
