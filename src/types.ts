@@ -73,6 +73,11 @@ export interface AutoPositionRules {
   barOffsetX: number;           // Horizontal tweak for bar (default: 0)
   barOffsetY: number;           // Vertical tweak for bar (default: 0)
   stackMatrix?: StackMatrix;  // double accents: one rule per circumflex/breve x tone pair
+  // Italic / leaning fonts: marks follow the slant axis instead of the vertical. Degrees, + = leans
+  // right. slantDetected is what the app found on load (declared italicAngle or measured).
+  slantAngle?: number;
+  slantDetected?: number;
+  slantSource?: 'declared' | 'measured' | 'none';
 }
 
 export interface GlyphOverrideState {
