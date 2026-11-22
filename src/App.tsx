@@ -4,6 +4,7 @@ import * as opentype from 'opentype.js';
 import { FontUploader } from './components/FontUploader';
 import { StudioLayout } from './components/layout/StudioLayout';
 import { MirroredVideoCanvas } from './components/MirroredVideoCanvas';
+import { HelpGuideModal } from './components/HelpGuideModal';
 import {
   DiacriticTemplate,
   AutoPositionRules,
@@ -86,6 +87,7 @@ export default function App() {
   const [originalFont, setOriginalFont] = useState<opentype.Font | null>(null);
   const [rawFontBuffer, setRawFontBuffer] = useState<ArrayBuffer | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
+  const [showLandingHelp, setShowLandingHelp] = useState(false);
   const [metadata, setMetadata] = useState<FontMetadata | null>(null);
 
   // V2 Core States
@@ -1302,6 +1304,17 @@ export default function App() {
         <div className="relative h-full w-full overflow-hidden select-none">
           {/* Background Video: Decoded ONCE via single video element, rendered to Canvas with 100% frame lock */}
           <MirroredVideoCanvas src="/trainx.webm" />
+
+          <button
+            type="button"
+            onClick={() => setShowLandingHelp(true)}
+            className="absolute top-5 right-5 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-amber-500 hover:text-neutral-950 hover:border-amber-400 backdrop-blur-sm border border-white/30 text-white text-base font-extrabold shadow-lg flex items-center justify-center transition cursor-pointer"
+            title="Hướng dẫn"
+            aria-label="Hướng dẫn"
+          >
+            ?
+          </button>
+          {showLandingHelp && <HelpGuideModal onClose={() => setShowLandingHelp(false)} />}
 
           {/* Cụm Tải font: luôn cố định bằng khoảng 1/4 h từ trên xuống */}
           <div
