@@ -631,7 +631,8 @@ export default function App() {
               rules,
               override,
               preserveExistingGlyphs,
-              regenerateSet
+              regenerateSet,
+              { cleanOutline: true } // the font file: no crossings or slivers (small-size glitches)
             );
             if (hornInfo) {
               charHornInfo[recipe.char] = hornInfo;

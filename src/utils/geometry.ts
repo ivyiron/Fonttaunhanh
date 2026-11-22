@@ -313,3 +313,126 @@ export function outlineClearance(a: Cmd[], b: Cmd[], step = 4): { distance: numb
   }
   return { distance: Math.sqrt(best), pointA: ba, pointB: bb };
 }
+
+// ---------------------------------------------------------------- outline clean-up
+
+/**
+ * Snap to the integer grid the font file stores, the way the file will hold it, and drop what
+ * snapping makes degenerate: zero-length lines, a closing line back onto the start point, and
+ * contours that collapse to nothing. Doing this before checking for crossings matters: two points
+ * a fraction of a unit apart can become a tiny bow-tie once rounded.
+ */
+export function snapOutline(cmds: Cmd[]): Cmd[] {
+  const r = (v: number) => Math.round(v);
+  const out: Cmd[] = [];
+  for (const contour of splitContours(cmds)) {
+    const c: Cmd[] = [];
+    let start: Pt | null = null, last: Pt | null = null;
+    for (const k of contour) {
+      if (k.type === 'M') {
+        start = last = { x: r(k.x), y: r(k.y) };
+        c.push({ type: 'M', x: start.x, y: start.y });
+      } else if (k.type === 'L' && last) {
+        const p = { x: r(k.x), y: r(k.y) };
+        if (p.x === last.x && p.y === last.y) continue;
+        c.push({ type: 'L', x: p.x, y: p.y });
+        last = p;
+      } else if (k.type === 'Q' && last) {
+        const p = { x: r(k.x), y: r(k.y) };
+        c.push({ type: 'Q', x1: r(k.x1), y1: r(k.y1), x: p.x, y: p.y });
+        last = p;
+      } else if (k.type === 'C' && last) {
+        const p = { x: r(k.x), y: r(k.y) };
+        const x1 = r(k.x1), y1 = r(k.y1), x2 = r(k.x2), y2 = r(k.y2);
+        // a curve that collapsed onto one point is nothing
+        if (p.x === last.x && p.y === last.y && x1 === p.x && y1 === p.y && x2 === p.x && y2 === p.y) continue;
+        c.push({ type: 'C', x1, y1, x2, y2, x: p.x, y: p.y });
+        last = p;
+      }
+    }
+    // closing line that lands on the start point: Z already closes it
+    if (c.length > 2 && start) {
+      const end = c[c.length - 1];
+      if (end.type === 'L' && end.x === start.x && end.y === start.y) c.pop();
+    }
+    if (c.length < 3) continue;
+    out.push(...c, { type: 'Z' });
+  }
+  return out;
+}
+
+/** Crossings (between contours or a contour with itself), ignoring the shared ends of neighbours. */
+function countCrossings(item: any): number {
+  return item.getIntersections().filter((loc: any) => {
+    const c1 = loc.curve, c2 = loc.intersection?.curve;
+    if (!c2 || c1.path !== c2.path) return true;
+    const near = (t: number) => t < 1e-6 || t > 1 - 1e-6;
+    return !(near(loc.time) && near(loc.intersection.time));
+  }).length;
+}
+
+function sliverCount(item: any, minArea: number): number {
+  const parts: any[] = item.children && item.children.length ? item.children : [item];
+  return parts.filter((ch) => Math.abs(ch.area) < minArea || ch.bounds.width < 1 || ch.bounds.height < 1).length;
+}
+
+/**
+ * Make a composed outline safe for small sizes: snapped to the integer grid, no contour crossing
+ * itself or another, no pinched loops, no slivers. Overlaps and self-crossings rasterise as dark
+ * spots or light seams at text sizes on some renderers (and with hinting), though they look fine
+ * large.
+ *
+ * The outline is only rebuilt when the snapped one has a problem; a clean letter keeps its points.
+ * A rebuilt outline must keep the same box and area (overlaps can only remove area) and must itself
+ * be free of crossings after snapping, otherwise the snapped input is kept and `ok` is false.
+ */
+export function cleanOutline(
+  cmds: Cmd[],
+  minArea = 4
+): { cmds: Cmd[]; changed: boolean; ok: boolean; issues: number } {
+  if (!cmds.length) return { cmds, changed: false, ok: true, issues: 0 };
+  const snapped = snapOutline(cmds);
+  const items: any[] = [];
+  const make = (c: Cmd[]) => {
+    const it: any = new paper.CompoundPath({ pathData: toPathData(c), insert: false });
+    items.push(it);
+    return it;
+  };
+  try {
+    ensurePaper();
+    const src = make(snapped);
+    const issues = countCrossings(src) + sliverCount(src, minArea);
+    if (!issues) return { cmds: snapped, changed: false, ok: true, issues: 0 };
+
+    const ref: any = src.clone({ insert: false });
+    items.push(ref);
+    const refArea = Math.abs(ref.reorient(true, true).area);
+
+    const res: any = (src as any).resolveCrossings().reorient(true, true);
+    items.push(res);
+    const parts: any[] = res.children && res.children.length ? [...res.children] : [res];
+    for (const ch of parts) {
+      if (Math.abs(ch.area) < minArea || ch.bounds.width < 1 || ch.bounds.height < 1) ch.remove();
+    }
+    const fixed = snapOutline(fromPaperItem(res));
+    const chk = make(fixed);
+
+    const b0 = src.bounds, b1 = chk.bounds;
+    const tol = 1.5;
+    const sameBox =
+      Math.abs(b0.left - b1.left) <= tol && Math.abs(b0.right - b1.right) <= tol &&
+      Math.abs(b0.top - b1.top) <= tol && Math.abs(b0.bottom - b1.bottom) <= tol;
+    const chkArea = Math.abs((chk.clone({ insert: false }) as any).reorient(true, true).area);
+    const areaOk = chkArea <= refArea + minArea * 4 && chkArea >= refArea * 0.9;
+    const clean = countCrossings(chk) === 0 && sliverCount(chk, minArea) === 0;
+    const ok = sameBox && areaOk && clean;
+    return { cmds: ok ? fixed : snapped, changed: ok, ok, issues };
+  } catch (err) {
+    console.warn('cleanOutline failed, outline kept as is:', err);
+    return { cmds: snapped, changed: false, ok: false, issues: -1 };
+  } finally {
+    for (const it of items) {
+      try { it.remove(); } catch { /* ignore */ }
+    }
+  }
+}

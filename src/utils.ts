@@ -920,7 +920,8 @@ export function unionSvgPaths(d1: string, d2: string): string {
     path2.remove();
     united.remove();
 
-    if (resultD && resultD.trim().length > 0 && coversBox && enoughArea) {
+    const okUnion = !!(resultD && resultD.trim().length > 0 && coversBox && enoughArea);
+    if (okUnion) {
       return resultD;
     }
     return d1 + ' ' + d2;
@@ -1710,7 +1711,7 @@ export function injectAdvancedLayoutTables(
 
 import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState, StackMatrix, StackRule, StackRuleSet, StackTone, StackMod } from './types';
 import { skewSvgCommands } from './utils/slant';
-import { strokeWeight, scaleKeepWeight, offsetOutline, outlineBounds, translateCommands, outlineClearance, lowestPointX } from './utils/geometry';
+import { strokeWeight, scaleKeepWeight, offsetOutline, outlineBounds, translateCommands, outlineClearance, lowestPointX, cleanOutline } from './utils/geometry';
 
 // Default professional vector shapes for 9 Vietnamese diacritics
 export const DEFAULT_DIACRITICS: DiacriticTemplate[] = [
@@ -2448,12 +2449,15 @@ export function composeGlyphPath(
   overrides?: GlyphOverrideState,
   preserveExistingGlyphs: boolean = true,
   // letters the font already has but the user wants rebuilt (kept letters stay as drawn)
-  regenerateChars?: ReadonlySet<string>
+  regenerateChars?: ReadonlySet<string>,
+  // export: remove crossings, overlaps and slivers so the letter rasterises cleanly at small sizes
+  options?: { cleanOutline?: boolean }
 ): { 
   path: opentype.Path; 
   advanceWidth: number; 
   hornInfo?: { yMin: number; yMax: number; excessRight: number };
   stackInfo?: StackInfo;
+  outlineFix?: { issues: number; ok: boolean };
 } {
   let baseCharToUse = recipe.baseChar;
   let componentsToUse = [...recipe.components];
@@ -2857,6 +2861,16 @@ export function composeGlyphPath(
     }
   });
 
+  // Small-size safety (export): one pass over the finished letter. Clean letters come back untouched.
+  let outlineFix: { issues: number; ok: boolean } | undefined;
+  if (options?.cleanOutline) {
+    const r = cleanOutline([...baseCmds, ...allDiaCmds], 4 * unitScale * unitScale);
+    if (r.issues) outlineFix = { issues: r.issues, ok: r.ok };
+    // r.cmds is always the snapped outline (rebuilt only when it had crossings or slivers)
+    baseCmds = orientContours(r.cmds, targetOuterClockwise);
+    allDiaCmds.length = 0;
+  }
+
   // Construct final composite glyph path:
   // 1. Add base glyph commands (which now contains the seamlessly united attached diacritics)
   const compositePath = new opentype.Path();
@@ -2886,7 +2900,7 @@ export function composeGlyphPath(
     advanceWidth += overrides.advanceWidthTweak;
   }
 
-  return { path: compositePath, advanceWidth, hornInfo, stackInfo };
+  return { path: compositePath, advanceWidth, hornInfo, stackInfo, outlineFix };
 }
 
 /**
