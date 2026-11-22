@@ -78,6 +78,8 @@ export interface AutoPositionRules {
   slantAngle?: number;
   slantDetected?: number;
   slantSource?: 'declared' | 'measured' | 'none';
+  // how the font's own Ð crosses its D (bar height × cap height, reach left / right in stems)
+  dBarUpper?: { cy: number; left: number; right: number };
 }
 
 export interface GlyphOverrideState {

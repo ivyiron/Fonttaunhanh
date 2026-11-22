@@ -436,3 +436,61 @@ export function cleanOutline(
     }
   }
 }
+
+// ---------------------------------------------------------------- reading a letter's outline
+
+/** Ink intervals of an outline along the horizontal line y (non-zero fill), left to right. */
+export function rowIntervals(cmds: Cmd[], y: number): Array<[number, number]> {
+  const hits: Array<{ x: number; w: number }> = [];
+  for (const poly of flattenOutline(cmds, 16)) {
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+        hits.push({ x: a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y), w: b.y > a.y ? 1 : -1 });
+      }
+    }
+  }
+  hits.sort((p, q) => p.x - q.x);
+  const out: Array<[number, number]> = [];
+  let wind = 0, start = 0;
+  for (const h of hits) {
+    const before = wind;
+    wind += h.w;
+    if (before === 0 && wind !== 0) start = h.x;
+    else if (before !== 0 && wind === 0) out.push([start, h.x]);
+  }
+  return out;
+}
+
+// Proportions measured on 102 fonts with full Vietnamese (median). Used to place and size the
+// horn and the d bar; the letter's own stem width, height and slant do the rest.
+export const HORN_SHAPE = {
+  o: { top: 0.17, ext: 0.14 }, // horn top above the letter (× letter height), reach past ink (× x-height)
+  u: { top: 0.22, ext: 0.21 },
+  O: { top: 0.12, ext: 0.08 }, // capitals: × cap height
+  U: { top: 0.14, ext: 0.15 }
+};
+export const D_BAR = {
+  lower: { cy: 0.47, left: 1.55, right: 0.75 }, // cy: between x-height (0) and ascender (1); ends × stem
+  upper: { cy: 0.5, left: 0.68, right: 3.2 }, // cy × cap height
+  thickPerStem: 0.63,
+  thickPerEthBar: 0.89
+};
+
+/**
+ * Where the horn goes on this letter: the box its outline should fill (font units). The horn rises
+ * from the right shoulder; its top and reach come from HORN_SHAPE.
+ */
+export function hornTarget(base: Cmd[], kind: 'o' | 'u' | 'O' | 'U', refHeight: number) {
+  const b = outlineBounds(base);
+  const h = b.yMax - b.yMin;
+  const s = HORN_SHAPE[kind];
+  return { xMax: b.xMax + s.ext * refHeight, yMax: b.yMax + s.top * h, bounds: b };
+}
+
+/** The d / D stem the bar crosses, at height y: [left, right] of the right (d) or left (D) stem. */
+export function stemAt(base: Cmd[], y: number, side: 'right' | 'left'): [number, number] | null {
+  const row = rowIntervals(base, y);
+  if (!row.length) return null;
+  return side === 'right' ? row[row.length - 1] : row[0];
+}

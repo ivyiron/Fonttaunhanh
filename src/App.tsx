@@ -4,6 +4,7 @@ import * as opentype from 'opentype.js';
 import { FontUploader } from './components/FontUploader';
 import { StudioLayout } from './components/layout/StudioLayout';
 import { MirroredVideoCanvas } from './components/MirroredVideoCanvas';
+import { HelpGuideModal } from './components/HelpGuideModal';
 import {
   DiacriticTemplate,
   AutoPositionRules,
@@ -30,6 +31,7 @@ import {
   scaleRulesToUpm,
   sizePlaceholderTemplates,
   skewPlaceholderTemplates,
+  prepareFontMarks,
   extractSvgFromGlyph,
   arrayBufferToBase64,
   base64ToArrayBuffer,
@@ -85,6 +87,7 @@ export default function App() {
   const [originalFont, setOriginalFont] = useState<opentype.Font | null>(null);
   const [rawFontBuffer, setRawFontBuffer] = useState<ArrayBuffer | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
+  const [showLandingHelp, setShowLandingHelp] = useState(false);
   const [metadata, setMetadata] = useState<FontMetadata | null>(null);
 
   // V2 Core States
@@ -326,40 +329,11 @@ export default function App() {
       };
       setExistingGlyphInfo(existingInfo);
 
-      // Initialize 9 diacritics templates from DEFAULT_DIACRITICS
-      const initialTemplates: Record<string, DiacriticTemplate> = {};
-      let extractedCount = 0;
-      const extractedList: string[] = [];
-      const extractedIds = new Set<string>();
-
-      DEFAULT_DIACRITICS.forEach((dia) => {
-        const candidateGlyph = findCandidateGlyph(loadedFont, dia.id);
-        if (candidateGlyph) {
-          const fontSvg = extractSvgFromGlyph(candidateGlyph, loadedFont.unitsPerEm);
-          if (fontSvg) {
-            initialTemplates[dia.id] = {
-              ...dia,
-              svgPath: fontSvg,
-              scaleX: 1.0,
-              scaleY: 1.0,
-              offsetX: 0,
-              offsetY: 0
-            };
-            extractedCount++;
-            extractedList.push(dia.name);
-            extractedIds.add(dia.id);
-            return;
-          }
-        }
-        // Fallback to default
-        initialTemplates[dia.id] = { ...dia };
-      });
-      // placeholders for marks the font does not have: same size as the marks taken from the font
-      // Italic / leaning fonts: placeholders are drawn upright, lean them like the font.
-      // Marks taken from the font already lean.
-      const slant = detectSlant(loadedFont);
-      const sized = sizePlaceholderTemplates(loadedFont, initialTemplates, extractedIds);
-      setTemplates(slant.angle ? skewPlaceholderTemplates(sized, extractedIds, slant.angle) : sized);
+      // Marks: taken from the font where it has them, placeholders sized and leaned like the font
+      const prepared = prepareFontMarks(loadedFont);
+      const { extractedList, slant } = prepared;
+      const extractedCount = extractedList.length;
+      setTemplates(prepared.templates);
 
       if (existingInfo.count === VIETNAMESE_RECIPES.length) {
         setAppSuccess(
@@ -395,12 +369,7 @@ export default function App() {
       setOverrides(initialOverrides);
       setRegenerateChars([]);
       // defaults are tuned on a 1000-unit em: carry the same proportions to fonts on other UPMs
-      setRules({
-        ...scaleRulesToUpm(DEFAULT_AUTO_RULES, loadedFont.unitsPerEm || 1000),
-        slantAngle: slant.angle,
-        slantDetected: slant.angle,
-        slantSource: slant.source
-      });
+      setRules(prepared.rules);
     },
     []
   );
@@ -598,7 +567,7 @@ export default function App() {
           return findGlyphIndex(font, c);
         };
 
-        const charHornInfo: Record<string, { yMin: number; yMax: number; excessRight: number }> = {};
+        const charHornInfo: Record<string, { yMin: number; yMax: number; excessRight: number; xMax?: number; advance?: number }> = {};
         const regenerateSet = new Set<string>(regenerateChars);
 
         // Compose and inject all Vietnamese composite glyphs (bypassed if skipVietnamize is checked)
@@ -635,7 +604,7 @@ export default function App() {
               { cleanOutline: true } // the font file: no crossings or slivers (small-size glitches)
             );
             if (hornInfo) {
-              charHornInfo[recipe.char] = hornInfo;
+              charHornInfo[recipe.char] = { ...hornInfo, advance: advanceWidth };
             }
 
             const glyphOptions = {
@@ -752,49 +721,33 @@ export default function App() {
         });
 
         // Helper for horn kerning
+        // ơ ư take o u's kerning. Only if the horn would come too close to the next letter (with that
+        // kerning applied) is the pair opened up, by just enough. Pairs where the horn is clear keep
+        // the original value.
         const adjustClonedKern = (
-          horn: { yMin: number; yMax: number; excessRight: number },
+          horn: { yMin: number; yMax: number; excessRight: number; xMax?: number; advance?: number },
           originalKern: number,
           rightGlyphIndex: number
         ): number => {
-          if (horn.excessRight <= 0) return originalKern;
-
+          if (horn.xMax === undefined || horn.advance === undefined) return originalKern;
           const rightGlyph = font.glyphs.get(rightGlyphIndex);
-          if (
-            !rightGlyph ||
-            !rightGlyph.path ||
-            !rightGlyph.path.commands ||
-            rightGlyph.path.commands.length === 0
-          ) {
+          if (!rightGlyph || !rightGlyph.path || !rightGlyph.path.commands || rightGlyph.path.commands.length === 0) {
             return originalKern;
           }
-
-          let leftXAtHornHeight = Infinity;
-          const yMin = horn.yMin - 35;
-          const yMax = horn.yMax + 35;
-
+          const pad = 0.03 * (font.unitsPerEm || 1000);
+          let leftInk = Infinity;
           rightGlyph.path.commands.forEach((cmd: any) => {
-            const checkPoint = (x: number, y: number) => {
-              if (y >= yMin && y <= yMax) {
-                if (x < leftXAtHornHeight) {
-                  leftXAtHornHeight = x;
-                }
-              }
+            const check = (x: number, y: number) => {
+              if (y >= horn.yMin - pad && y <= horn.yMax + pad && x < leftInk) leftInk = x;
             };
-            if (cmd.x !== undefined && cmd.y !== undefined) checkPoint(cmd.x, cmd.y);
-            if (cmd.x1 !== undefined && cmd.y1 !== undefined) checkPoint(cmd.x1, cmd.y1);
-            if (cmd.x2 !== undefined && cmd.y2 !== undefined) checkPoint(cmd.x2, cmd.y2);
+            if (cmd.x !== undefined && cmd.y !== undefined) check(cmd.x, cmd.y);
+            if (cmd.x1 !== undefined && cmd.y1 !== undefined) check(cmd.x1, cmd.y1);
+            if (cmd.x2 !== undefined && cmd.y2 !== undefined) check(cmd.x2, cmd.y2);
           });
-
-          if (leftXAtHornHeight !== Infinity) {
-            const safetyGap = 60;
-            const overlapRisk = horn.excessRight - leftXAtHornHeight;
-            if (overlapRisk > -safetyGap) {
-              const adjustment = overlapRisk + safetyGap;
-              return originalKern + adjustment;
-            }
-          }
-          return originalKern;
+          if (leftInk === Infinity) return originalKern;
+          const minGap = 0.025 * (font.unitsPerEm || 1000);
+          const gap = horn.advance + originalKern + leftInk - horn.xMax;
+          return gap < minGap ? Math.round(originalKern + (minGap - gap)) : originalKern;
         };
 
         // Kerning Pairs Sync
@@ -1351,6 +1304,17 @@ export default function App() {
         <div className="relative h-full w-full overflow-hidden select-none">
           {/* Background Video: Decoded ONCE via single video element, rendered to Canvas with 100% frame lock */}
           <MirroredVideoCanvas src="/trainx.webm" />
+
+          <button
+            type="button"
+            onClick={() => setShowLandingHelp(true)}
+            className="absolute top-5 right-5 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-amber-500 hover:text-neutral-950 hover:border-amber-400 backdrop-blur-sm border border-white/30 text-white text-base font-extrabold shadow-lg flex items-center justify-center transition cursor-pointer"
+            title="Hướng dẫn"
+            aria-label="Hướng dẫn"
+          >
+            ?
+          </button>
+          {showLandingHelp && <HelpGuideModal onClose={() => setShowLandingHelp(false)} />}
 
           {/* Cụm Tải font: luôn cố định bằng khoảng 1/4 h từ trên xuống */}
           <div

@@ -1710,8 +1710,9 @@ export function injectAdvancedLayoutTables(
 // ============================================================================
 
 import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState, StackMatrix, StackRule, StackRuleSet, StackTone, StackMod } from './types';
-import { skewSvgCommands } from './utils/slant';
-import { strokeWeight, scaleKeepWeight, offsetOutline, outlineBounds, translateCommands, outlineClearance, lowestPointX, cleanOutline } from './utils/geometry';
+import { skewSvgCommands, detectSlant } from './utils/slant';
+import { learnFromFont, fitMarksToFont, applyLearnedPositions, rulesFromLearning, learnDBar, EXPECT_H, FontMarkLearning } from './utils/markFit';
+import { strokeWeight, scaleKeepWeight, offsetOutline, outlineBounds, translateCommands, outlineClearance, lowestPointX, cleanOutline, hornTarget, rowIntervals, stemAt, D_BAR } from './utils/geometry';
 
 // Default professional vector shapes for 9 Vietnamese diacritics
 export const DEFAULT_DIACRITICS: DiacriticTemplate[] = [
@@ -1999,6 +2000,106 @@ export function skewPlaceholderTemplates(
     out[id] = { ...out[id], svgPath: commandsToSvgPathD(skewSvgCommands(parseSvgPath(out[id].svgPath), angle)) };
   });
   return out;
+}
+
+/**
+ * A font without đ / Đ: a bar as thick as its own Ð bar (or ~⅔ of the d stem), in the 1000-unit,
+ * y-down template space. Where it goes is decided on the letter (composeGlyphPath).
+ */
+function fitBarToFont(
+  font: any,
+  templates: Record<string, DiacriticTemplate>,
+  sourceKind: Record<string, 'composed' | 'spacing' | 'placeholder'>,
+  learn: FontMarkLearning,
+  dBar: { thick: number } | null
+) {
+  if (sourceKind.bar === 'composed' || !templates.bar) return;
+  const upm = font.unitsPerEm || 1000;
+  let thick = dBar ? dBar.thick : 0;
+  if (!thick) {
+    const i = font.charToGlyphIndex('d');
+    const d = i > 0 ? font.glyphs.get(i) : null;
+    if (d && d.path && d.path.commands.length) {
+      const top = getExactBoundingBox(d.path.commands).yMax;
+      const st = stemAt(d.path.commands, learn.xHeight + D_BAR.lower.cy * (top - learn.xHeight), 'right');
+      if (st) thick = (st[1] - st[0]) * D_BAR.thickPerStem;
+    }
+  }
+  if (thick > 0) {
+    const t = thick * (1000 / upm);
+    templates.bar = { ...templates.bar, svgPath: `M -100,0 L 100,0 L 100,${t.toFixed(2)} L -100,${t.toFixed(2)} Z`, scaleX: 1, scaleY: 1 };
+  }
+}
+
+/**
+ * Everything the app derives from a newly loaded font before any user edit: mark templates (taken
+ * from the font where it has them, placeholders otherwise), the slant, and the starting rules.
+ * Shared by the app and the measuring scripts so both see exactly the same thing.
+ */
+export function prepareFontMarks(font: any): {
+  templates: Record<string, DiacriticTemplate>;
+  extractedIds: Set<string>;
+  extractedList: string[];
+  slant: { angle: number; source: 'declared' | 'measured' | 'none' };
+  rules: AutoPositionRules;
+  learn: FontMarkLearning;
+} {
+  const templates: Record<string, DiacriticTemplate> = {};
+  const extractedIds = new Set<string>();
+  const extractedList: string[] = [];
+  const sourceKind: Record<string, 'composed' | 'spacing' | 'placeholder'> = {};
+  DEFAULT_DIACRITICS.forEach((dia) => {
+    const candidateGlyph = findCandidateGlyph(font, dia.id);
+    if (candidateGlyph) {
+      const fontSvg = extractSvgFromGlyph(candidateGlyph, font.unitsPerEm);
+      if (fontSvg) {
+        templates[dia.id] = { ...dia, svgPath: fontSvg, scaleX: 1.0, scaleY: 1.0, offsetX: 0, offsetY: 0 };
+        extractedIds.add(dia.id);
+        extractedList.push(dia.name);
+        sourceKind[dia.id] = (candidateGlyph as any).__source?.kind === 'composed' ? 'composed' : 'spacing';
+        return;
+      }
+    }
+    templates[dia.id] = { ...dia };
+    sourceKind[dia.id] = 'placeholder';
+  });
+  // acute and grave are mirror images of each other: a font with only ` (ASCII) still gives its acute
+  const mirror = (from: string, to: string) => {
+    if (sourceKind[to] !== 'placeholder' || sourceKind[from] === 'placeholder' || !templates[from]) return;
+    templates[to] = {
+      ...templates[to],
+      svgPath: commandsToSvgPathD(transformCommands(parseSvgPath(templates[from].svgPath), 1, 1, 0, 0, false, true)),
+      scaleX: templates[from].scaleX,
+      scaleY: templates[from].scaleY
+    };
+    sourceKind[to] = sourceKind[from];
+    extractedIds.add(to);
+  };
+  mirror('grave', 'acute');
+  mirror('acute', 'grave');
+  const slant = detectSlant(font);
+  // measure the font's own accented letters: mark size, gap, sideways shift
+  const learn = learnFromFont(font, slant.angle);
+  // every mark not taken from a letter: measured against the letters (height, stroke weight)
+  const fitted = fitMarksToFont(font, templates, sourceKind, learn);
+  // dot below: sized from the font's i dot as before
+  const sized = sizePlaceholderTemplates(font, fitted, new Set([...extractedIds, ...Object.keys(EXPECT_H), 'horn_o', 'horn_u', 'bar']));
+  const leanedRaw = slant.angle ? skewPlaceholderTemplates(sized, extractedIds, slant.angle) : sized;
+  // measured gap and sideways shift become the marks' default X / Y
+  const leaned = applyLearnedPositions(leanedRaw, learn);
+  const dBar = learnDBar(font);
+  fitBarToFont(font, leaned, sourceKind, learn, dBar);
+  const rules: AutoPositionRules = rulesFromLearning(
+    {
+      ...scaleRulesToUpm(DEFAULT_AUTO_RULES, font.unitsPerEm || 1000),
+      slantAngle: slant.angle,
+      slantDetected: slant.angle,
+      slantSource: slant.source
+    },
+    learn
+  );
+  if (dBar) rules.dBarUpper = { cy: dBar.cy, left: dBar.left, right: dBar.right };
+  return { templates: leaned, extractedIds, extractedList, slant, rules, learn };
 }
 
 export interface StackInfo {
@@ -2455,7 +2556,7 @@ export function composeGlyphPath(
 ): { 
   path: opentype.Path; 
   advanceWidth: number; 
-  hornInfo?: { yMin: number; yMax: number; excessRight: number };
+  hornInfo?: { yMin: number; yMax: number; excessRight: number; xMax?: number };
   stackInfo?: StackInfo;
   outlineFix?: { issues: number; ok: boolean };
 } {
@@ -2664,7 +2765,7 @@ export function composeGlyphPath(
 
   let previousBox: { xMin: number; yMin: number; xMax: number; yMax: number } | undefined = undefined;
   let autoHornAdvanceWidthTweak = 0;
-  let hornInfo: { yMin: number; yMax: number; excessRight: number } | undefined = undefined;
+  let hornInfo: { yMin: number; yMax: number; excessRight: number; xMax?: number } | undefined = undefined;
   const allDiaCmds: any[] = [];
 
   componentsToUse.forEach((diaId, idx) => {
@@ -2759,6 +2860,44 @@ export function composeGlyphPath(
 
     finalCmds = applyTemplateStroke(finalCmds, diaRawCmds, template, !!useCapVariant, scaleXToUse * unitScale, scaleYToUse * unitScale, finalScaleX, finalScaleY);
 
+    // Horn and d bar: placed on the letter's outline (its shoulder, its stem), not on its box.
+    // Proportions from fonts that have Vietnamese (geometry.ts); user nudges and rule offsets kept.
+    const userDX = finalOffsetX - autoPos.offsetX;
+    const userDY = finalOffsetY - autoPos.offsetY;
+    if (diaId === 'horn_o' || diaId === 'horn_u') {
+      const kind = (diaId === 'horn_o' ? 'o' : 'u')[isCapital ? 'toUpperCase' : 'toLowerCase']() as 'o' | 'u' | 'O' | 'U';
+      const ref = isCapital ? groupHeights.capHeightMax || baseBBox.y2 : groupHeights.xHeightMax || baseBBox.y2;
+      const t = hornTarget(baseCmds, kind, ref);
+      const hb = outlineBounds(finalCmds);
+      finalCmds = translateCommands(
+        finalCmds,
+        t.xMax - hb.xMax + userDX + rules.hornOffsetX,
+        t.yMax - hb.yMax + userDY + rules.hornOffsetY
+      );
+    } else if (diaId === 'bar') {
+      const b = outlineBounds(baseCmds);
+      const xh = groupHeights.xHeightMax || b.yMax * 0.6;
+      const spec = isCapital ? rules.dBarUpper || D_BAR.upper : D_BAR.lower;
+      const cy = isCapital ? b.yMin + spec.cy * (b.yMax - b.yMin) : xh + spec.cy * (b.yMax - xh);
+      const st = stemAt(baseCmds, cy, isCapital ? 'left' : 'right');
+      if (st) {
+        const sw = st[1] - st[0];
+        const x0 = st[0] - spec.left * sw, x1 = st[1] + spec.right * sw;
+        const bb = outlineBounds(finalCmds);
+        const k = bb.width > 0 ? (x1 - x0) / bb.width : 1;
+        // stretch the bar to span the stem, keep its thickness; centre it on cy
+        finalCmds = finalCmds.map((c: any) => {
+          const o: any = { ...c };
+          const fx = (x: number) => x0 + (x - bb.xMin) * k;
+          if (o.x !== undefined) o.x = fx(o.x);
+          if (o.x1 !== undefined) o.x1 = fx(o.x1);
+          if (o.x2 !== undefined) o.x2 = fx(o.x2);
+          return o;
+        });
+        finalCmds = translateCommands(finalCmds, userDX + rules.barOffsetX, cy - (bb.yMin + bb.height / 2) + userDY + rules.barOffsetY);
+      }
+    }
+
     // Rule-table placement for circumflex/breve + tone
     if (useMatrix && stackCell) {
       if (diaId === stackCell.mod) {
@@ -2818,15 +2957,19 @@ export function composeGlyphPath(
     }
 
     if (diaId === 'horn_o' || diaId === 'horn_u' || diaId.startsWith('horn')) {
-      const excessRight = composedDiaBBox.xMax - baseBBox.x2;
-      if (excessRight > 0) {
-        autoHornAdvanceWidthTweak = Math.max(autoHornAdvanceWidthTweak, excessRight);
-        hornInfo = {
-          yMin: composedDiaBBox.yMin,
-          yMax: composedDiaBBox.yMax,
-          excessRight: excessRight
-        };
+      // Designers let the horn hang past the advance (median 20 units for ơ, 40 for ư on 102
+      // fonts) and widen the letter little or not at all. Widening by the whole reach past the
+      // ink pushed ơ ư away from the next letter. Now: half of what passes the advance.
+      const pastAdvance = composedDiaBBox.xMax - (baseGlyph.advanceWidth || baseBBox.x2);
+      if (pastAdvance > 0) {
+        autoHornAdvanceWidthTweak = Math.max(autoHornAdvanceWidthTweak, pastAdvance * 0.5);
       }
+      hornInfo = {
+        yMin: composedDiaBBox.yMin,
+        yMax: composedDiaBBox.yMax,
+        excessRight: Math.max(0, pastAdvance),
+        xMax: composedDiaBBox.xMax
+      };
     }
 
     // For attached components (bar on d/Đ, horn on u/o/U/O), perform a 2D boolean union
@@ -2945,13 +3088,15 @@ export function findCandidateGlyph(font: any, diaId: string): any {
       unicodes: [0x02D8, 0x0306],
       names: ['breve', 'breveaccent', 'uni0306', 'uni02D8', 'dautrang']
     },
+    // no comma: a comma is not a horn (it hangs below and does not join the letter); without a
+    // real horn the app uses its placeholder, fitted to the letters
     horn_o: {
-      unicodes: [0x031B, 0x002C],
-      names: ['horn', 'horncomb', 'uni031B', 'daumoc', 'comma', 'uni002C']
+      unicodes: [0x031B],
+      names: ['horn', 'horncomb', 'uni031B', 'daumoc']
     },
     horn_u: {
-      unicodes: [0x031B, 0x002C],
-      names: ['horn', 'horncomb', 'uni031B', 'daumoc', 'comma', 'uni002C']
+      unicodes: [0x031B],
+      names: ['horn', 'horncomb', 'uni031B', 'daumoc']
     },
     bar: {
       unicodes: [0x00AF, 0x002D, 0x2212, 0x0304],
@@ -2970,6 +3115,8 @@ export function findCandidateGlyph(font: any, diaId: string): any {
       if (idx > 0) {
         const glyph = font.glyphs.get(idx);
         if (glyph && glyph.path && glyph.path.commands && glyph.path.commands.length > 0) {
+          // a stand-alone accent (´ ^ ~ …): its size is often not the size used on letters
+          (glyph as any).__source = { kind: 'spacing', unicode };
           return glyph;
         }
       }
@@ -2987,6 +3134,7 @@ export function findCandidateGlyph(font: any, diaId: string): any {
           const lowerName = glyph.name.toLowerCase();
           if (config.names.includes(lowerName)) {
             if (glyph.path && glyph.path.commands && glyph.path.commands.length > 0) {
+              (glyph as any).__source = { kind: 'spacing', name: glyph.name };
               return glyph;
             }
           }
@@ -3024,7 +3172,7 @@ export function getGlyphContours(commands: any[]): any[][] {
  * Extracts a specific diacritic mark from existing precomposed Vietnamese characters in the font
  * (e.g., isolating the acute mark from 'á', tilde from 'ẽ', horn from 'ơ'/'ư', etc.)
  */
-export function extractDiacriticFromComposedGlyph(font: any, diaId: string): any {
+export function extractDiacriticFromComposedGlyph(font: any, diaId: string, onlyComposedChar?: string): any {
   if (!font) return null;
 
   const PRECOMPOSED_MAP: Record<string, {
@@ -3216,6 +3364,7 @@ export function extractDiacriticFromComposedGlyph(font: any, diaId: string): any
   if (!config) return null;
 
   for (const { composedChar, baseChar } of config.candidates) {
+    if (onlyComposedChar && composedChar !== onlyComposedChar) continue;
     try {
       const compIdx = font.charToGlyphIndex(composedChar);
       if (compIdx <= 0) continue;
@@ -3335,6 +3484,8 @@ export function extractDiacriticFromComposedGlyph(font: any, diaId: string): any
           advanceWidth: baseGlyph?.advanceWidth || compGlyph.advanceWidth || 500,
           path: path
         });
+        // where the mark came from: its place on the letter is what the font's designer chose
+        (dummyGlyph as any).__source = { kind: 'composed', composedChar, baseChar };
         return dummyGlyph;
       }
     } catch (err) {

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { strokeSlantAxis } from './slantGuide';
 import * as opentype from 'opentype.js';
 import { ZoomIn, ZoomOut, RotateCcw, Copy, Sparkles } from 'lucide-react';
 import { StageTitle, recipeNote } from './StageTitle';
@@ -182,15 +183,15 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
         ctx.lineTo(cssWidth - 10, capY);
         ctx.stroke();
 
-        // Center line
-        const centerX = cssWidth / 2;
+        // Axis of the base letter: through its box centre at mid-height, leaning with the font
+        const axisBase = activeRecipe ? font.charToGlyph(activeRecipe.baseChar) : null;
+        const axisBox = axisBase && axisBase.path ? axisBase.getBoundingBox() : null;
+        const axisX = axisBox ? fontStartX + ((axisBox.x1 + axisBox.x2) / 2) * scaleFactor : cssWidth / 2;
+        const axisY = axisBox ? baselineY - ((axisBox.y1 + axisBox.y2) / 2) * scaleFactor : cssHeight / 2;
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 3]);
-        ctx.beginPath();
-        ctx.moveTo(centerX, 10);
-        ctx.lineTo(centerX, cssHeight - 10);
-        ctx.stroke();
+        strokeSlantAxis(ctx, axisX, axisY, rules.slantAngle, 10, cssHeight - 10);
 
         ctx.setLineDash([]);
       }
