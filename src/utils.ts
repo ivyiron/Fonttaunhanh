@@ -2538,6 +2538,57 @@ export const PRECOMPOSED_BASE_MAP: Record<string, { precomposedBaseChar: string;
 };
 
 /**
+ * Horn and d bar sit on the letter's outline (its shoulder, its stem), not on its box.
+ * Shared by the composer and the "Thanh dấu" preview so both put the mark in the same place.
+ * userDX/userDY: the template's own offsets (user nudges), kept on top of the placement.
+ */
+export function placeOnLetter(
+  diaId: string,
+  cmds: any[],
+  baseCmds: any[],
+  isCapital: boolean,
+  groupHeights: { xHeightMax?: number; capHeightMax?: number } | any,
+  rules: AutoPositionRules,
+  userDX: number,
+  userDY: number
+): any[] {
+  if (diaId === 'horn_o' || diaId === 'horn_u') {
+    const kind = (diaId === 'horn_o' ? 'o' : 'u')[isCapital ? 'toUpperCase' : 'toLowerCase']() as 'o' | 'u' | 'O' | 'U';
+    const ref = isCapital ? groupHeights.capHeightMax || outlineBounds(baseCmds).yMax : groupHeights.xHeightMax || outlineBounds(baseCmds).yMax;
+    const t = hornTarget(baseCmds, kind, ref);
+    const hb = outlineBounds(cmds);
+    cmds = translateCommands(
+      cmds,
+      t.xMax - hb.xMax + userDX + rules.hornOffsetX,
+      t.yMax - hb.yMax + userDY + rules.hornOffsetY
+    );
+  } else if (diaId === 'bar') {
+    const b = outlineBounds(baseCmds);
+    const xh = groupHeights.xHeightMax || b.yMax * 0.6;
+    const spec = isCapital ? rules.dBarUpper || D_BAR.upper : D_BAR.lower;
+    const cy = isCapital ? b.yMin + spec.cy * (b.yMax - b.yMin) : xh + spec.cy * (b.yMax - xh);
+    const st = stemAt(baseCmds, cy, isCapital ? 'left' : 'right');
+    if (st) {
+      const sw = st[1] - st[0];
+      const x0 = st[0] - spec.left * sw, x1 = st[1] + spec.right * sw;
+      const bb = outlineBounds(cmds);
+      const k = bb.width > 0 ? (x1 - x0) / bb.width : 1;
+      // stretch the bar to span the stem, keep its thickness; centre it on cy
+      cmds = cmds.map((c: any) => {
+        const o: any = { ...c };
+        const fx = (x: number) => x0 + (x - bb.xMin) * k;
+        if (o.x !== undefined) o.x = fx(o.x);
+        if (o.x1 !== undefined) o.x1 = fx(o.x1);
+        if (o.x2 !== undefined) o.x2 = fx(o.x2);
+        return o;
+      });
+      cmds = translateCommands(cmds, userDX + rules.barOffsetX, cy - (bb.yMin + bb.height / 2) + userDY + rules.barOffsetY);
+    }
+  }
+  return cmds;
+}
+
+/**
  * Builds a composite path for a character by merging the base glyph and its required diacritics.
  * When preserveExistingGlyphs is enabled and a precomposed base character (e.g., 'â', 'ô', 'ă') exists in the font,
  * it uses that precomposed glyph directly as the base character to inherit its native circumflex/breve mark.
@@ -2864,39 +2915,7 @@ export function composeGlyphPath(
     // Proportions from fonts that have Vietnamese (geometry.ts); user nudges and rule offsets kept.
     const userDX = finalOffsetX - autoPos.offsetX;
     const userDY = finalOffsetY - autoPos.offsetY;
-    if (diaId === 'horn_o' || diaId === 'horn_u') {
-      const kind = (diaId === 'horn_o' ? 'o' : 'u')[isCapital ? 'toUpperCase' : 'toLowerCase']() as 'o' | 'u' | 'O' | 'U';
-      const ref = isCapital ? groupHeights.capHeightMax || baseBBox.y2 : groupHeights.xHeightMax || baseBBox.y2;
-      const t = hornTarget(baseCmds, kind, ref);
-      const hb = outlineBounds(finalCmds);
-      finalCmds = translateCommands(
-        finalCmds,
-        t.xMax - hb.xMax + userDX + rules.hornOffsetX,
-        t.yMax - hb.yMax + userDY + rules.hornOffsetY
-      );
-    } else if (diaId === 'bar') {
-      const b = outlineBounds(baseCmds);
-      const xh = groupHeights.xHeightMax || b.yMax * 0.6;
-      const spec = isCapital ? rules.dBarUpper || D_BAR.upper : D_BAR.lower;
-      const cy = isCapital ? b.yMin + spec.cy * (b.yMax - b.yMin) : xh + spec.cy * (b.yMax - xh);
-      const st = stemAt(baseCmds, cy, isCapital ? 'left' : 'right');
-      if (st) {
-        const sw = st[1] - st[0];
-        const x0 = st[0] - spec.left * sw, x1 = st[1] + spec.right * sw;
-        const bb = outlineBounds(finalCmds);
-        const k = bb.width > 0 ? (x1 - x0) / bb.width : 1;
-        // stretch the bar to span the stem, keep its thickness; centre it on cy
-        finalCmds = finalCmds.map((c: any) => {
-          const o: any = { ...c };
-          const fx = (x: number) => x0 + (x - bb.xMin) * k;
-          if (o.x !== undefined) o.x = fx(o.x);
-          if (o.x1 !== undefined) o.x1 = fx(o.x1);
-          if (o.x2 !== undefined) o.x2 = fx(o.x2);
-          return o;
-        });
-        finalCmds = translateCommands(finalCmds, userDX + rules.barOffsetX, cy - (bb.yMin + bb.height / 2) + userDY + rules.barOffsetY);
-      }
-    }
+    finalCmds = placeOnLetter(diaId, finalCmds, baseCmds, isCapital, groupHeights, rules, userDX, userDY);
 
     // Rule-table placement for circumflex/breve + tone
     if (useMatrix && stackCell) {
