@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { strokeSlantAxis } from './slantGuide';
 import * as opentype from 'opentype.js';
 import { ZoomIn, ZoomOut, RotateCcw, Copy, Sparkles, Layers } from 'lucide-react';
 import { StageTitle } from './StageTitle';
@@ -321,14 +322,13 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
         fontPath.draw(ctx);
 
         if (showGuides) {
+          // the letter's axis: through its box centre at mid-height, leaning with the font
           const baseXCanvas = fontStartX + ((baseBBox.x1 + baseBBox.x2) / 2) * scaleFactor;
+          const baseMidCanvas = baselineY - ((baseBBox.y1 + baseBBox.y2) / 2) * scaleFactor;
           ctx.strokeStyle = '#0284c7';
           ctx.lineWidth = 0.8;
           ctx.setLineDash([2, 4]);
-          ctx.beginPath();
-          ctx.moveTo(baseXCanvas, 15);
-          ctx.lineTo(baseXCanvas, cssHeight - 15);
-          ctx.stroke();
+          strokeSlantAxis(ctx, baseXCanvas, baseMidCanvas, rules.slantAngle, 15, cssHeight - 15);
         }
       }
 
@@ -381,13 +381,11 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
       if (showGuides) {
         const fb = getExactBoundingBox(finalCmds);
         const diaCenterCanvas = fontStartX + ((fb.xMin + fb.xMax) / 2) * scaleFactor;
+        const diaMidCanvas = baselineY - ((fb.yMin + fb.yMax) / 2) * scaleFactor;
         ctx.strokeStyle = '#ec4899';
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 4]);
-        ctx.beginPath();
-        ctx.moveTo(diaCenterCanvas, 15);
-        ctx.lineTo(diaCenterCanvas, cssHeight - 15);
-        ctx.stroke();
+        strokeSlantAxis(ctx, diaCenterCanvas, diaMidCanvas, rules.slantAngle, 15, cssHeight - 15);
       }
     };
 

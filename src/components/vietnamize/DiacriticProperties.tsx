@@ -497,7 +497,21 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
       {/* Position Offset Controls */}
       <div className="space-y-2 bg-neutral-50/70 dark:bg-[#1e1e26] p-2.5 rounded-xl border border-neutral-200/80 dark:border-[#353545]">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Vị Trí Dấu</span>
+          <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-baseline gap-1.5">
+            Vị Trí Dấu
+            {(() => {
+              const f = rules.markFit?.[activeDiaId]?.[isCapVariantActive ? 'upper' : 'lower'];
+              if (!f || (!f.dx && !f.dy)) return null;
+              return (
+                <span
+                  className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400"
+                  title={f.n ? `Đo trên ${f.n} chữ có dấu sẵn của font` : 'Font không có chữ mang dấu này: mượn từ dấu gần nhất'}
+                >
+                  theo font: x {f.dx >= 0 ? '+' : ''}{Math.round(f.dx)} · y {f.dy >= 0 ? '+' : ''}{Math.round(f.dy)}
+                </span>
+              );
+            })()}
+          </span>
           <label className="flex items-center gap-1.5 text-[10px] font-bold text-neutral-600 dark:text-neutral-300 cursor-pointer select-none">
             <span>Căn giữa X tự động</span>
             <Switch small checked={currentAutoCenterX} onChange={(on) => updateActiveValues({ autoCenterX: on })} />

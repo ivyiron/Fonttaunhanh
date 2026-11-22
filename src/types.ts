@@ -78,6 +78,10 @@ export interface AutoPositionRules {
   slantAngle?: number;
   slantDetected?: number;
   slantSource?: 'declared' | 'measured' | 'none';
+  // Learned from the font's own accented letters (á é ó Á …): per mark, a sideways shift and a
+  // gap change in font units, for lowercase and capitals. Added to the automatic position.
+  useEthForDcroat?: boolean; // Đ = the font's own Ð when it has one (default on)
+  markFit?: Record<string, { lower: { dx: number; dy: number; n: number }; upper: { dx: number; dy: number; n: number } }>;
 }
 
 export interface GlyphOverrideState {
