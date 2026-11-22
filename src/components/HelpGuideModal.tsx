@@ -156,8 +156,10 @@ const IllKerning = () => (
 const IllExport = () => (
   <Frame>
     <rect x="20" y="22" width="220" height="44" rx="10" fill="currentColor" fillOpacity="0.06" stroke="currentColor" strokeOpacity="0.15" />
-    <text x="34" y="52" fontSize="20" fill="currentColor" fontFamily={SERIF}>Thương nhớ đường xưa</text>
-    <rect x="226" y="34" width="1.5" height="20" fill={ACCENT} />
+    {/* chữ ngắn, căn giữa: không tràn khung dù máy dùng font dự phòng nào */}
+    <text x="130" y="52" textAnchor="middle" fontSize="21" fill="currentColor" fontFamily={SERIF}>
+      Thương nhớ<tspan fill={ACCENT} fontWeight="300">|</tspan>
+    </text>
     {[{ t: '.ftn', s: 'dự án' }, { t: '.otf', s: 'font' }].map((f, i) => (
       <g key={f.t} transform={`translate(${62 + i * 82} 86)`}>
         <rect width="56" height="58" rx="8" fill={i === 1 ? ACCENT : 'currentColor'} fillOpacity={i === 1 ? 1 : 0.08} />

@@ -10,6 +10,7 @@ import {
   getExactBoundingBox,
   removeDotFromICommands,
   calculateAutoPosition,
+  placeOnLetter,
   applyTemplateStroke,
   getGroupReferenceHeights,
   VIETNAMESE_RECIPES,
@@ -350,7 +351,7 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
       const autoPos = calculateAutoPosition(activeDiaId, baseBBox, diaBBox, rules, cap, undefined, getGroupReferenceHeights(font), letter, unitScale);
       const finalOffsetX = autoPos.offsetX + (autoCenterXToUse ? 0 : offsetXToUse);
       const finalOffsetY = autoPos.offsetY + offsetYToUse;
-      const finalCmds = applyTemplateStroke(
+      const strokedCmds = applyTemplateStroke(
         transformCommands(templateTransformed, autoPos.scaleX, autoPos.scaleY, finalOffsetX, finalOffsetY, false),
         rawCmds,
         activeTemplate,
@@ -360,6 +361,10 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
         autoPos.scaleX,
         autoPos.scaleY
       );
+      // horn and d bar: same outline placement as the composer
+      const finalCmds = baseGlyph
+        ? placeOnLetter(activeDiaId, strokedCmds, baseGlyph.path.commands, cap, getGroupReferenceHeights(font), rules, finalOffsetX - autoPos.offsetX, finalOffsetY - autoPos.offsetY)
+        : strokedCmds;
 
       ctx.beginPath();
       ctx.setLineDash([]);
