@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Switch } from '../Switch';
 import * as opentype from 'opentype.js';
 import {
@@ -29,6 +29,7 @@ import {
   commandsToSvgPathD
 } from '../../utils';
 import { skewSvgCommands } from '../../utils/slant';
+import { learnFromFont, fitMarkSvgToFont } from '../../utils/markFit';
 
 interface DiacriticPropertiesProps {
   font: opentype.Font | null;
@@ -160,6 +161,12 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
+  // A drawn mark arrives at whatever size it was drawn: bring it to the height and stroke weight
+  // this font's letters call for, so Scale 100 % / stroke 0 are right from the start.
+  const fontLearning = useMemo(() => (font ? learnFromFont(font, rules.slantAngle || 0) : null), [font, rules.slantAngle]);
+  const fitToFont = (pathData: string) =>
+    font && fontLearning ? fitMarkSvgToFont(font, activeDiaId, pathData, fontLearning) : pathData;
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -169,7 +176,7 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
       if (content) {
         const pathData = extractPathDataFromSvg(content);
         if (pathData) {
-          updateActiveValues({ svgPath: pathData });
+          updateActiveValues({ svgPath: fitToFont(pathData) });
           setStatusMsg('Đã nạp file SVG thành công!');
         } else {
           setStatusMsg('Không tìm thấy đường vẽ vector trong SVG');
@@ -350,6 +357,13 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
             rows={7}
             value={currentSvgPath}
             onChange={(e) => updateActiveValues({ svgPath: extractPathDataFromSvg(e.target.value) })}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData('text');
+              const pathData = text ? extractPathDataFromSvg(text) : '';
+              if (!pathData) return;
+              e.preventDefault();
+              updateActiveValues({ svgPath: fitToFont(pathData) });
+            }}
             placeholder="M 10 20 L 30 50..."
             className="w-full text-[10px] font-mono p-1.5 bg-neutral-50 dark:bg-[#181822] border border-neutral-200 dark:border-[#353545] rounded-lg focus:outline-hidden focus:border-neutral-900 dark:focus:border-amber-400 transition resize-none text-neutral-900 dark:text-neutral-100"
           />
@@ -497,21 +511,7 @@ export const DiacriticProperties: React.FC<DiacriticPropertiesProps> = ({
       {/* Position Offset Controls */}
       <div className="space-y-2 bg-neutral-50/70 dark:bg-[#1e1e26] p-2.5 rounded-xl border border-neutral-200/80 dark:border-[#353545]">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-baseline gap-1.5">
-            Vị Trí Dấu
-            {(() => {
-              const f = rules.markFit?.[activeDiaId]?.[isCapVariantActive ? 'upper' : 'lower'];
-              if (!f || (!f.dx && !f.dy)) return null;
-              return (
-                <span
-                  className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400"
-                  title={f.n ? `Đo trên ${f.n} chữ có dấu sẵn của font` : 'Font không có chữ mang dấu này: mượn từ dấu gần nhất'}
-                >
-                  theo font: x {f.dx >= 0 ? '+' : ''}{Math.round(f.dx)} · y {f.dy >= 0 ? '+' : ''}{Math.round(f.dy)}
-                </span>
-              );
-            })()}
-          </span>
+          <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Vị Trí Dấu</span>
           <label className="flex items-center gap-1.5 text-[10px] font-bold text-neutral-600 dark:text-neutral-300 cursor-pointer select-none">
             <span>Căn giữa X tự động</span>
             <Switch small checked={currentAutoCenterX} onChange={(on) => updateActiveValues({ autoCenterX: on })} />

@@ -488,46 +488,6 @@ export function hornTarget(base: Cmd[], kind: 'o' | 'u' | 'O' | 'U', refHeight: 
   return { xMax: b.xMax + s.ext * refHeight, yMax: b.yMax + s.top * h, bounds: b };
 }
 
-/**
- * Draw a horn for a font that has none: a curved stroke from inside the right shoulder up to the
- * target, as thick as ~¾ of the letter's own stroke there, round ends. Font units, y up.
- */
-export function buildHorn(base: Cmd[], kind: 'o' | 'u' | 'O' | 'U', refHeight: number): Cmd[] {
-  ensurePaper();
-  const { xMax, yMax, bounds: b } = hornTarget(base, kind, refHeight);
-  const h = b.yMax - b.yMin;
-  const rootY = b.yMax - (kind === 'u' || kind === 'U' ? 0.12 : 0.25) * h;
-  const row = rowIntervals(base, rootY);
-  if (!row.length) return [];
-  const [s0, s1] = row[row.length - 1];
-  // stroke weight: the right side of the letter at mid-height (crossed square-on there; at the
-  // shoulder the stroke runs diagonally and a horizontal cut reads too thick)
-  const mid = rowIntervals(base, (b.yMin + b.yMax) / 2);
-  const side = mid.length ? mid[mid.length - 1] : [s0, s1];
-  const stem = Math.max(1, side[1] - side[0]);
-  const w = Math.min(Math.max(stem * 0.8, h * 0.04), h * 0.14);
-  const T = { x: xMax - w / 2, y: yMax - w / 2 };
-  const R = { x: s1 - Math.min(stem, s1 - s0) * 0.5, y: rootY };
-  const path = new paper.Path({ insert: false });
-  path.moveTo(new paper.Point(R.x, R.y));
-  path.cubicCurveTo(
-    new paper.Point(R.x + 0.55 * (T.x - R.x), R.y + 0.05 * (T.y - R.y)),
-    new paper.Point(T.x - 0.05 * (T.x - R.x), R.y + 0.55 * (T.y - R.y)),
-    new paper.Point(T.x, T.y)
-  );
-  let out: any = null;
-  try {
-    out = PaperOffset.offsetStroke(path, w / 2, { cap: 'round', join: 'round', insert: false } as any);
-    const cmds = fromPaperItem(out);
-    return cmds;
-  } catch {
-    return [];
-  } finally {
-    path.remove();
-    try { out?.remove(); } catch { /* ignore */ }
-  }
-}
-
 /** The d / D stem the bar crosses, at height y: [left, right] of the right (d) or left (D) stem. */
 export function stemAt(base: Cmd[], y: number, side: 'right' | 'left'): [number, number] | null {
   const row = rowIntervals(base, y);
