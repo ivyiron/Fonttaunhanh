@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import * as opentype from 'opentype.js';
-import { Search, X, Sparkles, Copy, Code, Check } from 'lucide-react';
+import { Search, X, Copy, Code, Check, Sparkles } from 'lucide-react';
 import { AutoPositionRules, DiacriticTemplate } from '../../types';
-import { CenterGuidesPanel } from './CenterGuidesPanel';
 import {
   getNativeCharSvgPath,
   getNativeCharFullSvg,
-  getExtractedDiacriticSvgPathFromChar
+  getExtractedDiacriticSvgPathFromChar,
+  extractDiacriticFromSpecificChar,
+  commandsToSvgPathD,
+  getExactBoundingBox
 } from '../../utils';
+import { CenterGuidesPanel } from './CenterGuidesPanel';
+import { GlyphSvg, Tile, DetailPanel, PanelCard, GlyphFrame } from './libraryShared';
 
 interface FontDiacriticsLibraryModalProps {
   isOpen: boolean;
@@ -158,6 +162,29 @@ const VIETNAMESE_CHAR_LIST = [
   { char: 'Đ', base: 'D', type: 'bar', label: 'D gạch' }
 ];
 
+
+const FILTERS = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'acute', label: 'Sắc' },
+  { id: 'grave', label: 'Huyền' },
+  { id: 'hook', label: 'Hỏi' },
+  { id: 'tilde', label: 'Ngã' },
+  { id: 'dot_below', label: 'Nặng' },
+  { id: 'circumflex', label: 'Mũ' },
+  { id: 'breve', label: 'Trăng' },
+  { id: 'horn', label: 'Móc' },
+  { id: 'bar', label: 'Gạch' }
+];
+
+type Item = (typeof VIETNAMESE_CHAR_LIST)[number] & {
+  d: string;
+  markD: string;
+  box: { x1: number; x2: number; y1: number; y2: number };
+};
+
+const templateIdFor = (item: { type: string; base: string }) =>
+  item.type === 'horn' ? (item.base.toLowerCase() === 'u' ? 'horn_u' : 'horn_o') : item.type;
+
 export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProps> = ({
   isOpen,
   onClose,
@@ -167,230 +194,224 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
   rules,
   onUpdateRules
 }) => {
-  const [copyToast, setCopyToast] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [view, setView] = useState<'marks' | 'centers'>('marks');
+  const [filter, setFilter] = useState<string>('all');
+  const [query, setQuery] = useState<string>('');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
+  const items: Item[] = useMemo(() => {
+    if (!font) return [];
+    const out: Item[] = [];
+    for (const it of VIETNAMESE_CHAR_LIST) {
+      const idx = font.charToGlyphIndex(it.char);
+      if (idx <= 0) continue;
+      const g: any = font.glyphs.get(idx);
+      if (!g || !g.path || !g.path.commands || !g.path.commands.length) continue;
+      const b = getExactBoundingBox(g.path.commands);
+      let markD = '';
+      try {
+        const m: any = extractDiacriticFromSpecificChar(font, it.char, it.base);
+        if (m && m.path && m.path.commands.length) markD = commandsToSvgPathD(m.path.commands);
+      } catch {
+        markD = '';
+      }
+      out.push({ ...it, d: commandsToSvgPathD(g.path.commands), markD, box: { x1: b.xMin, x2: b.xMax, y1: b.yMin, y2: b.yMax } });
+    }
+    return out;
+  }, [font]);
+
+  const frame: GlyphFrame = useMemo(() => {
+    const upm = (font as any)?.unitsPerEm || 1000;
+    if (!items.length) return { top: upm, bottom: -upm * 0.25 };
+    const top = Math.max(...items.map((i) => i.box.y2));
+    const bottom = Math.min(...items.map((i) => i.box.y1), 0);
+    const pad = (top - bottom) * 0.08;
+    return { top: top + pad, bottom: bottom - pad };
+  }, [items, font]);
+
   if (!isOpen || !font) return null;
 
-  const triggerCopy = (text: string, label: string) => {
+  const q = query.trim().toLowerCase();
+  const shown = items.filter(
+    (i) => (filter === 'all' || i.type === filter) && (!q || i.char.toLowerCase().includes(q) || i.label.toLowerCase().includes(q))
+  );
+  const current = items.find((i) => i.char === selected) || shown[0] || null;
+  const canCenters = !!(rules && onUpdateRules);
+
+  const copy = (text: string, label: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
-    setCopyToast(`Đã sao chép: ${label}`);
-    setTimeout(() => setCopyToast(null), 3000);
+    setToast(label);
+    setTimeout(() => setToast(null), 1800);
   };
 
-  const availableItems = VIETNAMESE_CHAR_LIST.filter((item) => {
-    const idx = font.charToGlyphIndex(item.char);
-    if (idx <= 0) return false;
-    const g = font.glyphs.get(idx);
-    return g && g.path && g.path.commands && g.path.commands.length > 0;
-  });
-
-  const filteredItems = availableItems.filter((item) => {
-    if (activeTab !== 'all' && item.type !== activeTab) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        item.char.toLowerCase().includes(q) ||
-        item.label.toLowerCase().includes(q) ||
-        item.type.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  const tabBtn = (id: 'marks' | 'centers', label: React.ReactNode) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => setView(id)}
+      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+        view === id
+          ? 'bg-neutral-900 text-white dark:bg-amber-500 dark:text-neutral-950'
+          : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/60 backdrop-blur-xs animate-fade-in">
-      <div className="bg-white dark:bg-[#1b1b24] border border-neutral-200 dark:border-[#353545] rounded-2xl max-w-5xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in text-neutral-900 dark:text-neutral-100">
-        {/* Modal Header */}
-        <div className="p-4 px-6 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/60 backdrop-blur-xs animate-fade-in" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="bg-white dark:bg-[#1b1b24] border border-neutral-200 dark:border-[#353545] rounded-2xl max-w-6xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in text-neutral-900 dark:text-neutral-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header: tabs + close */}
+        <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-neutral-200 dark:border-[#323242]">
           <div className="flex items-center gap-1 bg-neutral-100 dark:bg-[#22222e] p-1 rounded-xl">
-            {[
-              { id: 'marks' as const, label: `Thư viện dấu có sẵn trong font (${availableItems.length})` },
-              ...(rules && onUpdateRules ? [{ id: 'centers' as const, label: 'Tâm chữ' }] : [])
-            ].map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setView(t.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer ${
-                  view === t.id
-                    ? 'bg-white dark:bg-[#30303f] text-neutral-950 dark:text-white shadow-xs'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {tabBtn('marks', <>Dấu trong font <span className="font-mono opacity-60">{items.length}</span></>)}
+            {canCenters && tabBtn('centers', 'Tâm chữ')}
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200/60 dark:hover:bg-[#2e2e3e] rounded-lg transition cursor-pointer"
+            title="Đóng"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {view === 'centers' && rules && onUpdateRules ? (
-          <div className="flex-1 overflow-y-auto p-6 border-t border-neutral-100 dark:border-[#323242] bg-neutral-50/50 dark:bg-[#16161f]">
-            <CenterGuidesPanel font={font} rules={rules} onUpdateRules={onUpdateRules} />
-          </div>
+        {view === 'centers' && canCenters ? (
+          <CenterGuidesPanel font={font} rules={rules!} onUpdateRules={onUpdateRules!} />
         ) : (
-        <>
-        {/* Search & Filter Bar */}
-        <div className="p-4 px-6 border-b border-neutral-100 dark:border-[#323242] flex flex-col sm:flex-row gap-3 items-center justify-between bg-white dark:bg-[#1b1b24]">
-          <div className="flex flex-wrap gap-1">
-            {[
-              { id: 'all', label: 'Tất cả' },
-              { id: 'acute', label: 'Sắc' },
-              { id: 'grave', label: 'Huyền' },
-              { id: 'hook', label: 'Hỏi' },
-              { id: 'tilde', label: 'Ngã' },
-              { id: 'dot_below', label: 'Nặng' },
-              { id: 'circumflex', label: 'Nón (Mũ)' },
-              { id: 'breve', label: 'Trăng' },
-              { id: 'horn', label: 'Móc (Ơ, Ư)' },
-              { id: 'bar', label: 'Gạch (Đ)' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'bg-neutral-950 dark:bg-amber-500 text-white dark:text-neutral-950 font-extrabold shadow-2xs'
-                    : 'bg-neutral-100 dark:bg-[#262634] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-[#303042]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <div className="flex-1 flex min-h-0">
+            {/* Left: filter + grid */}
+            <div className="flex-1 flex flex-col min-w-0 bg-neutral-50/60 dark:bg-[#16161f]">
+              <div className="px-4 py-2.5 flex items-center gap-2 border-b border-neutral-200/70 dark:border-[#2a2a38]">
+                <div className="flex flex-wrap gap-1 flex-1">
+                  {FILTERS.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setFilter(f.id)}
+                      className={`px-2 py-1 text-[11px] font-bold rounded-md transition cursor-pointer ${
+                        filter === f.id
+                          ? 'bg-white dark:bg-[#30303f] text-neutral-950 dark:text-white shadow-xs border border-neutral-200 dark:border-[#40405a]'
+                          : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white border border-transparent'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative w-36">
+                  <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Tìm…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="w-full text-xs pl-7 pr-2 py-1.5 bg-white dark:bg-[#22222e] border border-neutral-200 dark:border-[#3a3a4c] rounded-lg focus:outline-hidden focus:border-neutral-900 dark:focus:border-amber-400 placeholder:text-neutral-400"
+                  />
+                </div>
+              </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm ký tự..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs pl-8 pr-3 py-1.5 bg-neutral-50 dark:bg-[#22222e] border border-neutral-200 dark:border-[#3a3a4c] rounded-lg focus:outline-hidden focus:border-neutral-900 dark:focus:border-amber-400 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
-            />
-          </div>
-        </div>
-
-        {/* Toast */}
-        {copyToast && (
-          <div className="bg-neutral-900 dark:bg-[#2d2d3c] border border-transparent dark:border-[#424256] text-white text-xs px-4 py-2 font-bold flex items-center justify-center gap-2">
-            <Check className="w-4 h-4 text-emerald-400" />
-            <span>{copyToast}</span>
-          </div>
-        )}
-
-        {/* Content Grid */}
-        <div className="flex-1 overflow-y-auto p-6 bg-neutral-50/50 dark:bg-[#16161f]">
-          {filteredItems.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 text-neutral-400 dark:text-neutral-500">
-              <p className="text-sm font-semibold">
-                Không tìm thấy ký tự tiếng Việt nào trong nhóm này trong font gốc.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {filteredItems.map((item) => {
-                const nativeSvgPath = getNativeCharSvgPath(font, item.char);
-                const fullSvg = getNativeCharFullSvg(font, item.char);
-                const extractedMarkPath = getExtractedDiacriticSvgPathFromChar(font, item.char, item.base);
-
-                return (
-                  <div
-                    key={item.char}
-                    className="p-3 bg-white dark:bg-[#20202a] rounded-xl border border-neutral-200 dark:border-[#323242] shadow-xs hover:border-neutral-400 dark:hover:border-amber-500/50 hover:shadow-md transition flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-2xl font-black text-neutral-950 dark:text-white font-mono">{item.char}</span>
-                        <span className="text-[9px] font-mono bg-neutral-100 dark:bg-[#2b2b3a] px-1.5 py-0.5 rounded text-neutral-600 dark:text-neutral-300">
-                          U+{item.char.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium mb-2 truncate">{item.label}</p>
-                    </div>
-
-                    <div className="space-y-1 pt-2 border-t border-neutral-100 dark:border-[#2d2d3a] text-[10px]">
-                      {extractedMarkPath ? (
-                        <button
-                          type="button"
-                          onClick={() => triggerCopy(extractedMarkPath, `Mã SVG Path dấu từ '${item.char}'`)}
-                          className="w-full py-1 px-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 rounded-md font-bold flex items-center justify-center gap-1 transition cursor-pointer"
-                          title="Copy mã SVG Path d='...' của dấu bóc tách từ ký tự này"
-                        >
-                          <Sparkles className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                          <span>Copy SVG Dấu (Path)</span>
-                        </button>
-                      ) : (
-                        <span className="text-[9px] text-neutral-400 dark:text-neutral-500 italic block text-center py-0.5">
-                          Dấu dính liền thân
-                        </span>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => triggerCopy(nativeSvgPath, `Mã SVG Path ký tự '${item.char}'`)}
-                        className="w-full py-1 px-2 bg-neutral-100 hover:bg-neutral-200 dark:bg-[#2a2a38] dark:hover:bg-[#343446] text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-[#3a3a4c] rounded-md font-medium flex items-center justify-center gap-1 transition cursor-pointer"
-                        title="Copy mã SVG Path d='...' của toàn bộ ký tự này"
-                      >
-                        <Copy className="w-3 h-3 text-neutral-600 dark:text-neutral-300 shrink-0" />
-                        <span>Copy SVG Ký tự (Path)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => triggerCopy(fullSvg, `Thẻ <svg> đầy đủ của '${item.char}'`)}
-                        className="w-full py-1 px-2 bg-white hover:bg-neutral-50 dark:bg-[#22222e] dark:hover:bg-[#2a2a38] text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-[#3a3a4c] rounded-md font-mono text-[9px] flex items-center justify-center gap-1 transition cursor-pointer"
-                        title="Copy thẻ <svg>...</svg> đầy đủ"
-                      >
-                        <Code className="w-3 h-3 text-neutral-400 dark:text-neutral-400 shrink-0" />
-                        <span>Copy thẻ &lt;svg&gt;</span>
-                      </button>
-
-                      {extractedMarkPath && onApplySvgToTemplate && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            let mappedType = item.type;
-                            if (mappedType === 'horn') {
-                              mappedType = item.base.toLowerCase() === 'u' ? 'horn_u' : 'horn_o';
-                            }
-                            onApplySvgToTemplate(mappedType, extractedMarkPath);
-                            triggerCopy(extractedMarkPath, `Đã áp dụng dấu từ '${item.char}' vào Studio!`);
-                          }}
-                          className="w-full py-1 px-2 bg-neutral-900 hover:bg-black dark:bg-amber-500 dark:hover:bg-amber-400 text-white dark:text-neutral-950 font-bold text-[9px] flex items-center justify-center gap-1 transition mt-1 cursor-pointer"
-                        >
-                          <Check className="w-3 h-3 text-emerald-400 dark:text-neutral-950 shrink-0" />
-                          <span>Dùng làm Dấu mẫu</span>
-                        </button>
-                      )}
-                    </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {shown.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-sm font-semibold text-neutral-400 dark:text-neutral-500">
+                    Font không có ký tự nào trong nhóm này.
                   </div>
-                );
-              })}
+                ) : (
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-2">
+                    {shown.map((i) => (
+                      <Tile
+                        key={i.char}
+                        active={!!current && current.char === i.char}
+                        onClick={() => setSelected(i.char)}
+                        label={i.char}
+                        badge={!i.markD ? <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600" title="Dấu dính liền thân" /> : null}
+                      >
+                        <GlyphSvg d={i.d} box={i.box} frame={frame} highlight={i.markD} className="w-full aspect-square" />
+                      </Tile>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-        </>
-        )}
 
-        <div className="p-3 px-6 border-t border-neutral-200 dark:border-[#323242] flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
-          <span>{view === 'marks' ? '* Các mã dấu câu đã được bóc tách và chuyển đổi chuẩn hóa SVG Path.' : ''}</span>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-neutral-900 hover:bg-black dark:bg-[#2d2d3c] dark:hover:bg-[#38384c] text-white font-bold rounded-lg transition cursor-pointer"
-          >
-            Đóng
-          </button>
-        </div>
+            {/* Right: detail */}
+            <DetailPanel>
+              {current ? (
+                <div className="p-4 space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm font-extrabold">{current.label}</span>
+                    <span className="font-mono text-[10px] text-neutral-400">
+                      U+{current.char.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-neutral-200 dark:border-[#353545] bg-neutral-50 dark:bg-[#20202a] text-neutral-900 dark:text-neutral-100">
+                    <GlyphSvg d={current.d} box={current.box} frame={frame} highlight={current.markD} className="w-full aspect-square">
+                      {({ x0, size, y }) => (
+                        <line x1={x0} x2={x0 + size} y1={y(0)} y2={y(0)} stroke="currentColor" strokeOpacity="0.15" strokeWidth={size / 300} />
+                      )}
+                    </GlyphSvg>
+                  </div>
+
+                  {current.markD && onApplySvgToTemplate ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = templateIdFor(current);
+                        const p = getExtractedDiacriticSvgPathFromChar(font, current.char, current.base);
+                        onApplySvgToTemplate(id, p);
+                      }}
+                      className="w-full py-2 bg-neutral-900 hover:bg-black dark:bg-amber-500 dark:hover:bg-amber-400 text-white dark:text-neutral-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Dùng làm {(templates[templateIdFor(current)]?.name || 'dấu mẫu').replace(/\s*\(.*\)\s*$/, '').toLowerCase()}
+                    </button>
+                  ) : (
+                    <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center py-1">Dấu dính liền thân, không bóc tách được.</p>
+                  )}
+
+                  <PanelCard title="Copy SVG">
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { k: 'mark', icon: Sparkles, label: 'Dấu', text: current.markD ? getExtractedDiacriticSvgPathFromChar(font, current.char, current.base) : '' },
+                        { k: 'char', icon: Copy, label: 'Ký tự', text: getNativeCharSvgPath(font, current.char) },
+                        { k: 'svg', icon: Code, label: '<svg>', text: getNativeCharFullSvg(font, current.char) }
+                      ].map(({ k, icon: Icon, label, text }) => (
+                        <button
+                          key={k}
+                          type="button"
+                          disabled={!text}
+                          onClick={() => copy(text, label)}
+                          className="py-2 rounded-lg bg-white dark:bg-[#282834] border border-neutral-200 dark:border-[#3e3e50] hover:border-neutral-400 dark:hover:border-[#5a5a70] text-[10px] font-bold flex flex-col items-center gap-1 transition cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
+                        >
+                          {toast === label ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Icon className="w-3.5 h-3.5" />}
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </PanelCard>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-xs text-neutral-400 p-6 text-center">Chọn một ký tự</div>
+              )}
+            </DetailPanel>
+          </div>
+        )}
       </div>
     </div>
   );
