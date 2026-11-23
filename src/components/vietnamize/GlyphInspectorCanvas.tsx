@@ -4,7 +4,7 @@ import * as opentype from 'opentype.js';
 import { ZoomIn, ZoomOut, RotateCcw, Copy } from 'lucide-react';
 import { StageTitle, recipeNote } from './StageTitle';
 import { DiacriticTemplate, AutoPositionRules, GlyphOverrideState, FontMetadata } from '../../types';
-import { composeGlyphPath, VIETNAMESE_RECIPES, getNativeCharSvgPath } from '../../utils';
+import { composeGlyphPath, VIETNAMESE_RECIPES, getNativeCharSvgPath, baseAxisX } from '../../utils';
 
 interface GlyphInspectorCanvasProps {
   font: opentype.Font | null;
@@ -226,7 +226,8 @@ export const GlyphInspectorCanvas: React.FC<GlyphInspectorCanvasProps> = ({
         // Axis of the base letter: through its box centre at mid-height, leaning with the font
         const axisBase = recipe ? font.charToGlyph(recipe.baseChar) : null;
         const axisBox = axisBase && axisBase.path ? axisBase.getBoundingBox() : null;
-        const axisX = axisBox ? fontStartX + ((axisBox.x1 + axisBox.x2) / 2) * scaleFactor : cssWidth / 2;
+        const axisChar = recipe ? recipe.baseChar : undefined;
+        const axisX = axisBox ? fontStartX + baseAxisX(axisBox, axisChar, !!axisChar && axisChar !== axisChar.toLowerCase(), rules) * scaleFactor : cssWidth / 2;
         const axisY = axisBox ? baselineY - ((axisBox.y1 + axisBox.y2) / 2) * scaleFactor : cssHeight / 2;
         ctx.strokeStyle = '#ec4899';
         ctx.lineWidth = 1;

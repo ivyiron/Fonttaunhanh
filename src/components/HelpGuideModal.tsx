@@ -196,7 +196,7 @@ const STEPS: Step[] = [
     lines: [
       <>Chọn dấu ở cột trái, chỉnh <K>Vị trí</K> và <K>Kích thước</K>.</>,
       <>Giá trị mặc định đã được đo theo chính font.</>,
-      <>Font nghiêng: trục căn nghiêng theo góc của font.</>,
+      <>Trục tâm từng chữ (nghiêng theo font): <K>Font list › Tâm chữ</K>.</>,
     ],
     tip: <>Muốn dấu của riêng bạn: vẽ trong Illustrator, copy rồi dán vào ô <K>SVG</K>. App tự co dấu theo nét chữ.</>,
   },

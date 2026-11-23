@@ -21,7 +21,8 @@ import {
   getGroupReferenceHeights,
   parseSvgPath,
   transformCommands,
-  commandsToSvgPathD
+  commandsToSvgPathD,
+  removeDotFromICommands
 } from '../utils';
 
 /** Mark height / x-height (lowercase) and / cap height (uppercase): medians over 102 fonts with full Vietnamese. */
@@ -74,7 +75,63 @@ export interface FontMarkLearning {
   upperGap: number | null;
   upperScale: number | null; // capital marks vs lowercase marks
   fit: Record<string, { lower: MarkFit; upper: MarkFit }>;
+  // Per base letter: how far this font puts its marks from the auto axis, beyond what the mark's own
+  // learned dx already does (font units). E.g. an italic A whose marks sit further right than on E O U.
+  centers: Record<string, number>;
   samples: string[]; // accented letters measured
+}
+
+/** Base letters whose centre axis can be tuned (Font list › Tâm chữ). */
+export const CENTER_LETTERS = ['a', 'e', 'o', 'i', 'u', 'y', 'A', 'E', 'O', 'I', 'U', 'Y'];
+
+/** The commands the composer measures a base letter by (i without its dot). */
+export function baseLetterCommands(font: any, letter: string): any[] | null {
+  const idx = font.charToGlyphIndex(letter);
+  if (idx <= 0) return null;
+  const g = font.glyphs.get(idx);
+  if (!g || !g.path || !g.path.commands.length) return null;
+  return letter === 'i' ? removeDotFromICommands(g.path.commands) : g.path.commands;
+}
+
+function learnCenters(font: any, tn: number): Record<string, number> {
+  const marks = ['acute', 'grave', 'circumflex', 'tilde', 'hook', 'breve'];
+  const dx: Record<string, Record<string, number>> = {};
+  for (const letter of CENTER_LETTERS) {
+    const cmds = baseLetterCommands(font, letter);
+    if (!cmds) continue;
+    const bb = bboxOf(cmds);
+    if (!(bb.x2 > bb.x1)) continue;
+    const midY = (bb.y1 + bb.y2) / 2;
+    const cx0 = letter === 'y' ? bb.x1 + (bb.x2 - bb.x1) * 0.58 : (bb.x1 + bb.x2) / 2;
+    for (const mark of marks) {
+      const composed = (letter + COMB[mark]).normalize('NFC');
+      if (composed.length !== 1 || font.charToGlyphIndex(composed) <= 0) continue;
+      let ex: any = null;
+      try {
+        ex = extractDiacriticFromComposedGlyph(font, mark, composed);
+      } catch {
+        ex = null;
+      }
+      if (!ex) continue;
+      const mb = bboxOf(ex.path.commands);
+      if (!(mb.y2 > mb.y1)) continue;
+      (dx[mark] = dx[mark] || {})[letter] = (mb.x1 + mb.x2) / 2 - (cx0 + tn * (mb.y1 - midY));
+    }
+  }
+  const out: Record<string, number> = {};
+  for (const letter of CENTER_LETTERS) {
+    const upper = letter === letter.toUpperCase();
+    const ref = upper ? UPPER_BASES : LOWER_BASES;
+    const dev: number[] = [];
+    for (const mark of Object.keys(dx)) {
+      const v = dx[mark][letter];
+      const typical = ref.map((l) => dx[mark][l]).filter((x) => x !== undefined && isFinite(x));
+      if (v === undefined || !isFinite(v) || typical.length < 2) continue;
+      dev.push(v - median(typical));
+    }
+    out[letter] = dev.length ? Math.round(median(dev)) : 0;
+  }
+  return out;
 }
 
 const median = (v: number[]) => {
@@ -206,6 +263,7 @@ export function learnFromFont(font: any, slantAngle: number): FontMarkLearning {
     upperGap,
     upperScale: caseRatios.length ? median(caseRatios) : null,
     fit,
+    centers: learnCenters(font, tn),
     samples: [...new Set(samples)]
   };
 }
@@ -290,6 +348,8 @@ export function applyLearnedPositions(
 /** Rules starting values from what was measured (gaps, capital scale); the rest stays default. */
 export function rulesFromLearning(rules: AutoPositionRules, learn: FontMarkLearning): AutoPositionRules {
   const out: AutoPositionRules = { ...rules };
+  out.baseCenters = { ...learn.centers };
+  out.baseCentersLearned = { ...learn.centers };
   if (learn.lowerGap !== null) out.lowercaseAccentGap = Math.round(learn.lowerGap);
   if (learn.upperGap !== null) out.uppercaseAccentGap = Math.round(learn.upperGap);
   // capital marks: measured on Á vs á when the font has both, else the typical proportion

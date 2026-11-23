@@ -8,7 +8,7 @@ import {
   composeGlyphPath,
   VIETNAMESE_RECIPES,
   getNativeCharSvgPath,
-  getExtractedDiacriticSvgPathFromChar
+  getExtractedDiacriticSvgPathFromChar, baseAxisX
 } from '../../utils';
 
 interface DoubleAccentCanvasProps {
@@ -186,7 +186,8 @@ export const DoubleAccentCanvas: React.FC<DoubleAccentCanvasProps> = ({
         // Axis of the base letter: through its box centre at mid-height, leaning with the font
         const axisBase = activeRecipe ? font.charToGlyph(activeRecipe.baseChar) : null;
         const axisBox = axisBase && axisBase.path ? axisBase.getBoundingBox() : null;
-        const axisX = axisBox ? fontStartX + ((axisBox.x1 + axisBox.x2) / 2) * scaleFactor : cssWidth / 2;
+        const axisChar = activeRecipe ? activeRecipe.baseChar : undefined;
+        const axisX = axisBox ? fontStartX + baseAxisX(axisBox, axisChar, !!axisChar && axisChar !== axisChar.toLowerCase(), rules) * scaleFactor : cssWidth / 2;
         const axisY = axisBox ? baselineY - ((axisBox.y1 + axisBox.y2) / 2) * scaleFactor : cssHeight / 2;
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1;

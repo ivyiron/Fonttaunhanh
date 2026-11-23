@@ -2330,6 +2330,30 @@ export function getGroupReferenceHeights(font: opentype.Font | null): { xHeightM
   return { xHeightMax, capHeightMax };
 }
 
+/** Plain base letter of a (possibly precomposed) base: â → a, Ư → U. */
+export function plainBaseLetter(ch?: string): string | undefined {
+  return ch ? ch.normalize('NFD')[0] : ch;
+}
+
+/**
+ * X of the letter's centre axis at its mid-height (the axis then leans with the font's slant).
+ * Box centre, y at 58 % (its descender pulls the box left), plus the per-letter tune from
+ * Font list › Tâm chữ (rules.baseCenters).
+ */
+export function baseAxisX(
+  baseBBox: { x1: number; y1: number; x2: number; y2: number },
+  baseChar: string | undefined,
+  isCapital: boolean,
+  rules: Partial<AutoPositionRules> | undefined
+): number {
+  let x = (baseBBox.x1 + baseBBox.x2) / 2;
+  const isLowercaseY = baseChar ? baseChar === 'y' : !isCapital && baseChar === undefined;
+  if (isLowercaseY) x = baseBBox.x1 + (baseBBox.x2 - baseBBox.x1) * 0.58;
+  const k = plainBaseLetter(baseChar);
+  const off = k && rules && rules.baseCenters ? rules.baseCenters[k] : 0;
+  return x + (off && isFinite(off) ? off : 0);
+}
+
 /**
  * Calculates the exact translation scaling and offsets required to automatically align a diacritic on top/bottom of a base glyph.
  * Uses bounding boxes and Group Reference Heights for highly professional type design results.
@@ -2346,19 +2370,12 @@ export function calculateAutoPosition(
   unitScale: number = 1 // font UPM / 1000: the fixed nudges below were tuned on a 1000-unit em
 ): { scaleX: number; scaleY: number; offsetX: number; offsetY: number } {
   const u = unitScale;
-  let baseXCenter = (baseBBox.x1 + baseBBox.x2) / 2;
+  let baseXCenter = baseAxisX(baseBBox, baseChar, isCapital, rules);
   // Italic / leaning fonts: the box centre is right only at mid-height of the letter. A mark placed
   // higher (or lower) moves along the slant: x += tan(angle) * (height above that middle).
   const slantTan = Math.tan(((rules.slantAngle || 0) * Math.PI) / 180);
   const midY = (baseBBox.y1 + baseBBox.y2) / 2;
 
-  // Optical X centering ONLY for lowercase 'y' (ỵ)
-  // Lowercase 'y' has an asymmetric diagonal descender, whereas uppercase 'Y' (Ỵ) is horizontally symmetrical along X.
-  const isLowercaseY = baseChar ? baseChar === 'y' : (!isCapital && baseChar === undefined);
-  if (isLowercaseY) {
-    // For lowercase 'y', the bottom descender stem/vertex is shifted slightly right (~58% of bounding box width)
-    baseXCenter = baseBBox.x1 + (baseBBox.x2 - baseBBox.x1) * 0.58;
-  }
 
   // Group Height Baseline Alignment eliminates vertical "bouncing" across á, é, ó, í, ý
   // by anchoring diacritics to a unified Group Reference Height (x-Height for lowercase, Cap-Height for uppercase).
@@ -2550,7 +2567,8 @@ export function placeOnLetter(
   groupHeights: { xHeightMax?: number; capHeightMax?: number } | any,
   rules: AutoPositionRules,
   userDX: number,
-  userDY: number
+  userDY: number,
+  barScaleX: number = 1 // the bar template's Scale X (1 = spans the stem as measured)
 ): any[] {
   if (diaId === 'horn_o' || diaId === 'horn_u') {
     const kind = (diaId === 'horn_o' ? 'o' : 'u')[isCapital ? 'toUpperCase' : 'toLowerCase']() as 'o' | 'u' | 'O' | 'U';
@@ -2570,7 +2588,11 @@ export function placeOnLetter(
     const st = stemAt(baseCmds, cy, isCapital ? 'left' : 'right');
     if (st) {
       const sw = st[1] - st[0];
-      const x0 = st[0] - spec.left * sw, x1 = st[1] + spec.right * sw;
+      // Scale X widens / narrows the bar around the stem centre (left and right keep their ratio)
+      const sx = isFinite(barScaleX) && barScaleX > 0 ? barScaleX : 1;
+      const sc = (st[0] + st[1]) / 2;
+      const x0 = sc - (sc - (st[0] - spec.left * sw)) * sx;
+      const x1 = sc + (st[1] + spec.right * sw - sc) * sx;
       const bb = outlineBounds(cmds);
       const k = bb.width > 0 ? (x1 - x0) / bb.width : 1;
       // stretch the bar to span the stem, keep its thickness; centre it on cy
@@ -2915,7 +2937,8 @@ export function composeGlyphPath(
     // Proportions from fonts that have Vietnamese (geometry.ts); user nudges and rule offsets kept.
     const userDX = finalOffsetX - autoPos.offsetX;
     const userDY = finalOffsetY - autoPos.offsetY;
-    finalCmds = placeOnLetter(diaId, finalCmds, baseCmds, isCapital, groupHeights, rules, userDX, userDY);
+    const oSX = overrides && overrides.scaleX !== undefined && !isNaN(overrides.scaleX) ? overrides.scaleX : 1;
+    finalCmds = placeOnLetter(diaId, finalCmds, baseCmds, isCapital, groupHeights, rules, userDX, userDY, scaleXToUse * oSX);
 
     // Rule-table placement for circumflex/breve + tone
     if (useMatrix && stackCell) {
