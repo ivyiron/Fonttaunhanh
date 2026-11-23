@@ -297,6 +297,8 @@ export const VietnameseStudio: React.FC<VietnameseStudioProps> = ({
           onClose={() => setShowLibraryModal(false)}
           font={font}
           templates={templates}
+          rules={rules}
+          onUpdateRules={onUpdateRules}
           onApplySvgToTemplate={(diaId, svgPath) => {
             onUpdateTemplate(diaId, { svgPath });
             setShowLibraryModal(false);

@@ -16,7 +16,7 @@ import {
   VIETNAMESE_RECIPES,
   DEFAULT_DIACRITICS,
   getNativeCharSvgPath,
-  getExtractedDiacriticSvgPathFromChar
+  getExtractedDiacriticSvgPathFromChar, baseAxisX
 } from '../../utils';
 
 const APPLICABLE_CHARS: Record<string, string[]> = {
@@ -324,7 +324,7 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
 
         if (showGuides) {
           // the letter's axis: through its box centre at mid-height, leaning with the font
-          const baseXCanvas = fontStartX + ((baseBBox.x1 + baseBBox.x2) / 2) * scaleFactor;
+          const baseXCanvas = fontStartX + baseAxisX(baseBBox, letter, cap, rules) * scaleFactor;
           const baseMidCanvas = baselineY - ((baseBBox.y1 + baseBBox.y2) / 2) * scaleFactor;
           ctx.strokeStyle = '#0284c7';
           ctx.lineWidth = 0.8;
@@ -363,7 +363,7 @@ export const DiacriticCanvas: React.FC<DiacriticCanvasProps> = ({
       );
       // horn and d bar: same outline placement as the composer
       const finalCmds = baseGlyph
-        ? placeOnLetter(activeDiaId, strokedCmds, baseGlyph.path.commands, cap, getGroupReferenceHeights(font), rules, finalOffsetX - autoPos.offsetX, finalOffsetY - autoPos.offsetY)
+        ? placeOnLetter(activeDiaId, strokedCmds, baseGlyph.path.commands, cap, getGroupReferenceHeights(font), rules, finalOffsetX - autoPos.offsetX, finalOffsetY - autoPos.offsetY, scaleXToUse)
         : strokedCmds;
 
       ctx.beginPath();

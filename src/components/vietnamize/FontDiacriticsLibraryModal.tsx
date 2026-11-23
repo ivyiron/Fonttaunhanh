@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import * as opentype from 'opentype.js';
 import { Search, X, Sparkles, Copy, Code, Check } from 'lucide-react';
-import { DiacriticTemplate } from '../../types';
+import { AutoPositionRules, DiacriticTemplate } from '../../types';
+import { CenterGuidesPanel } from './CenterGuidesPanel';
 import {
   getNativeCharSvgPath,
   getNativeCharFullSvg,
@@ -14,6 +15,8 @@ interface FontDiacriticsLibraryModalProps {
   font: opentype.Font;
   templates: Record<string, DiacriticTemplate>;
   onApplySvgToTemplate?: (diaId: string, svgPath: string) => void;
+  rules?: AutoPositionRules;
+  onUpdateRules?: (updates: Partial<AutoPositionRules>) => void;
 }
 
 const VIETNAMESE_CHAR_LIST = [
@@ -160,13 +163,15 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
   onClose,
   font,
   templates,
-  onApplySvgToTemplate
+  onApplySvgToTemplate,
+  rules,
+  onUpdateRules
 }) => {
-  if (!isOpen || !font) return null;
-
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [view, setView] = useState<'marks' | 'centers'>('marks');
+  if (!isOpen || !font) return null;
 
   const triggerCopy = (text: string, label: string) => {
     if (!text) return;
@@ -200,15 +205,24 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
       <div className="bg-white dark:bg-[#1b1b24] border border-neutral-200 dark:border-[#353545] rounded-2xl max-w-5xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in text-neutral-900 dark:text-neutral-100">
         {/* Modal Header */}
         <div className="p-4 px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div>
-              <h3 className="text-base font-extrabold text-neutral-950 dark:text-white">
-                Thư Viện Dấu Có Sẵn Trong Font ({availableItems.length})
-              </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Font gốc có các nét dấu dưới đây. Bạn có thể copy mã SVG Path hoặc nạp trực tiếp làm mẫu dấu chuẩn.
-              </p>
-            </div>
+          <div className="flex items-center gap-1 bg-neutral-100 dark:bg-[#22222e] p-1 rounded-xl">
+            {[
+              { id: 'marks' as const, label: `Thư viện dấu có sẵn trong font (${availableItems.length})` },
+              ...(rules && onUpdateRules ? [{ id: 'centers' as const, label: 'Tâm chữ' }] : [])
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setView(t.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer ${
+                  view === t.id
+                    ? 'bg-white dark:bg-[#30303f] text-neutral-950 dark:text-white shadow-xs'
+                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
           <button
             onClick={onClose}
@@ -218,6 +232,12 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
           </button>
         </div>
 
+        {view === 'centers' && rules && onUpdateRules ? (
+          <div className="flex-1 overflow-y-auto p-6 border-t border-neutral-100 dark:border-[#323242] bg-neutral-50/50 dark:bg-[#16161f]">
+            <CenterGuidesPanel font={font} rules={rules} onUpdateRules={onUpdateRules} />
+          </div>
+        ) : (
+        <>
         {/* Search & Filter Bar */}
         <div className="p-4 px-6 border-b border-neutral-100 dark:border-[#323242] flex flex-col sm:flex-row gap-3 items-center justify-between bg-white dark:bg-[#1b1b24]">
           <div className="flex flex-wrap gap-1">
@@ -359,9 +379,11 @@ export const FontDiacriticsLibraryModal: React.FC<FontDiacriticsLibraryModalProp
             </div>
           )}
         </div>
+        </>
+        )}
 
         <div className="p-3 px-6 border-t border-neutral-200 dark:border-[#323242] flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
-          <span>* Các mã dấu câu đã được bóc tách và chuyển đổi chuẩn hóa SVG Path.</span>
+          <span>{view === 'marks' ? '* Các mã dấu câu đã được bóc tách và chuyển đổi chuẩn hóa SVG Path.' : ''}</span>
           <button
             onClick={onClose}
             className="px-4 py-1.5 bg-neutral-900 hover:bg-black dark:bg-[#2d2d3c] dark:hover:bg-[#38384c] text-white font-bold rounded-lg transition cursor-pointer"

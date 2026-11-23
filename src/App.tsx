@@ -1,4 +1,5 @@
 import { detectSlant } from './utils/slant';
+import { learnFromFont } from './utils/markFit';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import * as opentype from 'opentype.js';
 import { FontUploader } from './components/FontUploader';
@@ -1107,6 +1108,12 @@ export default function App() {
           loaded.slantAngle = 0;
           loaded.slantDetected = slant.angle;
           loaded.slantSource = slant.source;
+        }
+        if (loaded.baseCenters === undefined) {
+          // saved before per-letter centres: keep the old (box-centre) placement, offer the measured one as reset
+          const learned = learnFromFont(font, detectSlant(font).angle).centers;
+          loaded.baseCenters = Object.fromEntries(Object.keys(learned).map((k) => [k, 0]));
+          loaded.baseCentersLearned = learned;
         }
         setRules(loaded);
       }

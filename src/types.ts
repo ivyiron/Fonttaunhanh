@@ -80,6 +80,10 @@ export interface AutoPositionRules {
   slantSource?: 'declared' | 'measured' | 'none';
   // how the font's own Ð crosses its D (bar height × cap height, reach left / right in stems)
   dBarUpper?: { cy: number; left: number; right: number };
+  // Centre axis per base letter (a e o i u y A E O I U Y): font units added to the box centre.
+  // baseCentersLearned is what the app measured on load (reset target).
+  baseCenters?: Record<string, number>;
+  baseCentersLearned?: Record<string, number>;
 }
 
 export interface GlyphOverrideState {
