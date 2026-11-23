@@ -1532,13 +1532,53 @@ function stripFontTables(buffer: ArrayBuffer, drop: string[]): ArrayBuffer {
  * opentype.parse() throw; dropping the layout tables lets them be re-opened.
  * Returns degraded = true when the fallback path was used.
  */
-export function parseFontResilient(buffer: ArrayBuffer): { font: opentype.Font; degraded: boolean } {
+export function parseFontResilient(buffer: ArrayBuffer): { font: opentype.Font; degraded: boolean; aliased: string[] } {
+  let font: opentype.Font;
+  let degraded = false;
   try {
-    return { font: opentype.parse(buffer.slice(0)), degraded: false };
+    font = opentype.parse(buffer.slice(0));
   } catch (err) {
     const cleaned = stripFontTables(buffer, ['GPOS', 'GSUB', 'GDEF', 'BASE', 'kern']);
-    return { font: opentype.parse(cleaned), degraded: true };
+    font = opentype.parse(cleaned);
+    degraded = true;
   }
+  const aliased = unaliasVietnameseCodepoints(font);
+  return { font, degraded, aliased };
+}
+
+/**
+ * Some fonts map accented code points to the plain letter's glyph (é → e, Á → A) so text shows
+ * without boxes. Those are not the font's accented letters, so for Vietnamese letters the app treats
+ * them as missing: the code point is taken off the plain glyph and gets a real glyph when built.
+ * Returns the letters unmapped (e.g. "éèêóòôõ…").
+ */
+export function unaliasVietnameseCodepoints(font: any): string[] {
+  const out: string[] = [];
+  const cmap = font && font.tables && font.tables.cmap && font.tables.cmap.glyphIndexMap;
+  if (!cmap) return out;
+  for (const recipe of VIETNAMESE_RECIPES as any[]) {
+    const ch: string = recipe.char;
+    const base = ch.normalize('NFD')[0];
+    if (!base || base === ch) continue;
+    const cp = ch.codePointAt(0)!;
+    const idx = cmap[cp];
+    const baseIdx = cmap[base.codePointAt(0)!];
+    if (!idx || !baseIdx || idx !== baseIdx) continue;
+    delete cmap[cp];
+    try {
+      const g = font.glyphs.get(idx);
+      if (g && Array.isArray(g.unicodes)) {
+        g.unicodes = g.unicodes.filter((u: number) => u !== cp);
+        if (g.unicode === cp) g.unicode = g.unicodes[0];
+      }
+    } catch {
+      /* glyph not loadable: the cmap entry is gone, that is enough */
+    }
+    const m = font._IndexToUnicodeMap && font._IndexToUnicodeMap[idx];
+    if (m && Array.isArray(m.unicodes)) m.unicodes = m.unicodes.filter((u: number) => u !== cp);
+    out.push(ch);
+  }
+  return out;
 }
 
 /**
@@ -2591,8 +2631,14 @@ export function placeOnLetter(
       // Scale X widens / narrows the bar around the stem centre (left and right keep their ratio)
       const sx = isFinite(barScaleX) && barScaleX > 0 ? barScaleX : 1;
       const sc = (st[0] + st[1]) / 2;
-      const x0 = sc - (sc - (st[0] - spec.left * sw)) * sx;
-      const x1 = sc + (st[1] + spec.right * sw - sc) * sx;
+      // ends scale with the stem; a hairline stem (thin / high-contrast fonts) would leave a stub, so
+      // the stem counts as at least about half a regular stem (regular: ~0.16 x-height, ~0.13 cap height)
+      const h = isCapital ? b.yMax - b.yMin : xh;
+      const swEnds = Math.max(sw, (isCapital ? 0.07 : 0.09) * h);
+      const left = spec.left * swEnds;
+      const right = spec.right * swEnds;
+      const x0 = sc - (sc - (st[0] - left)) * sx;
+      const x1 = sc + (st[1] + right - sc) * sx;
       const bb = outlineBounds(cmds);
       const k = bb.width > 0 ? (x1 - x0) / bb.width : 1;
       // stretch the bar to span the stem, keep its thickness; centre it on cy
@@ -3142,7 +3188,7 @@ export function findCandidateGlyph(font: any, diaId: string): any {
     },
     bar: {
       unicodes: [0x00AF, 0x002D, 0x2212, 0x0304],
-      names: ['macron', 'hyphen', 'minus', 'uni002D', 'uni00AF', 'bar', 'gachngang']
+      names: ['macron', 'hyphen', 'minus', 'uni002D', 'uni00AF', 'gachngang'] // not 'bar': that is | (U+007C)
     }
   };
 
